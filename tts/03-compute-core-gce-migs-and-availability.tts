@@ -1,0 +1,117 @@
+The machines.
+
+Compute Engine is the infrastructure-as-a-service layer of GCP — virtual machines you can shape, attach disks to, place in a network, and run your code on. Everything higher up — Cloud Run, GKE, Cloud Functions — eventually rents Compute Engine capacity under the hood, so understanding it is useful even if you'll mostly live in pa-ass later.
+
+The core decisions are. Which C-P-U and memory shape. Which boot image. Where it runs. And how isolated the underlying hardware needs to be. We'll work through those, then move to how you pay for the resulting V-Ms.
+
+Start with machine families. GCP groups V-M shapes into machine families by workload profile. You pick a family, then a machine type within it, which fixes the v-C-P-U count and the memory. Five families cover most of what you'll see in practice.
+
+The E-two family is cost-optimised with shared C-P-U. Names like e-two-standard-four or e-two-medium. Use it for dev and test, low-traffic web, and anything where price beats performance.
+
+The N-two and N-four families are general-purpose Intel. Names like n-two-standard-eight or n-four-highmem-sixteen. This is the default for most production workloads.
+
+The C-three, C-three-D, and C-four families are compute-optimised. Names like c-three-standard-twenty-two or c-four-highcpu-forty-eight. Reach for these when you're C-P-U-heavy — web serving at scale, gaming servers, batch C-P-U.
+
+The M-three and M-two families are memory-optimised. Names like m-three-megamem-one-twenty-eight. Used for in-memory databases like S-A-P HANA and large Redis or Memcached.
+
+The A-three, A-two, and G-two families are accelerator instances with G-P-Us or T-P-Us. Used for M-L training, inference, and rendering.
+
+And the T-two-D and T-two-A families are Tau — high-cost-performance. Best when you have scale-out workloads where per-core price matters more than peak per-core performance.
+
+You also have a choice between predefined machine types and custom types. Most teams use predefined, like n-two-standard-eight. Custom types — for example n-two-custom-eight-sixteen-thousand-three-eighty-four for eight v-C-P-U and sixteen gibibytes — exist when no predefined shape fits. Useful for licensed software with awkward C-P-U to RAM ratios.
+
+A sizing rule of thumb. Start one tier smaller than you think and let monitoring tell you to grow. Right-sizing is a notebook-fourteen conversation, but the first instinct of "surely I need n-two-standard-thirty-two" is wrong about eighty percent of the time.
+
+Next, images — what the V-M boots from. A V-M boots from an image, which becomes the root of its boot disk. Three flavours.
+
+Public images are maintained by Google or partners. Debian, Ubuntu, Red Hat Enterprise Linux, Windows Server, and Container-Optimized O-S — abbreviated C-O-S, the GKE and Cloud Run host O-S. These are always patched to the latest snapshot when you pick the family name like debian-twelve.
+
+Custom images are created from one of your own V-M boot disks. The standard pattern: bake configuration in with Packer, push the resulting image to your project, point an instance template at it.
+
+Image families are a moving alias pointing at the latest image in a family — for example acme-webapp-prod always resolves to whichever image you tagged most recently. Used heavily by Managed Instance Groups so that rolling updates can point at the family and pick up new images automatically.
+
+Container-Optimized O-S is the one to know by name. It's a minimal, signed, read-only-root host O-S built only to run containers. GKE nodes use it. Cloud Run uses it. If you're running Docker on a long-lived V-M, C-O-S is usually the better choice over a general-purpose Linux.
+
+A note on sole-tenant nodes. By default, your V-M shares physical hardware with other tenants — that's normal cloud multi-tenancy, and the hypervisor isolates you. Sole-tenant nodes rent you an entire physical host, with only your V-Ms on it.
+
+Two reasons to care. Licensing — bring-your-own-license Windows, Oracle, or SQL Server often requires per-physical-socket licensing, which only works if you own the socket. And compliance — "no shared hardware" is sometimes mandated by regulation or contract. You pay a premium for the dedicated host on top of the V-M-hour cost, so for most workloads this isn't worth it. But when it's required, it's the only way.
+
+Paying for compute.
+
+Four pricing models stack on top of each other. Pick the right combination per workload, and the bill drops thirty to seventy percent off the on-demand sticker price. Pick badly — or default to on-demand for everything — and you're leaving money on the table that finance will eventually notice.
+
+The four are on-demand, Sustained Use Discounts, Committed Use Discounts, and Spot. Sustained Use Discounts are unique to GCP and the most often missed.
+
+On-demand is the obvious one. You commit to nothing, pay full sticker price, and use it for bursty, unpredictable, short-lived V-Ms.
+
+Sustained Use Discount — S-U-D for short — is the GCP-unique one. It applies automatically, with no commitment. The longer a V-M runs in a given month, the bigger the discount, up to about thirty percent. No reservations to manage, no expiry to track. AWS's nearest equivalent is the now-reduced Savings Plans baseline. Azure has nothing directly comparable. If you have a steady-state workload running twenty-four-seven, you're already getting roughly thirty percent off without doing anything. Sustained Use Discounts apply to any V-M that runs more than about a quarter of the month.
+
+Committed Use Discount — C-U-D for short — gets you up to about fifty-seven percent off, depending on commitment length and type. You commit to one or three years of spend. Two kinds of C-U-D matter.
+
+Resource-based C-U-Ds commit to a specific machine type in a specific region. Best discount, least flexible.
+
+Spend-based C-U-Ds commit to dollars per hour across a service like Compute Engine or Cloud SQL. Lower discount, far more flexible. The right default for most teams.
+
+Spot V-Ms replaced the older preemptible-V-M model. Spot has no fixed twenty-four-hour cap that preemptible V-Ms had, and prices float by region and family. Same fundamental contract: Google can shut the V-M down with about thirty seconds' notice when capacity is needed elsewhere. Discounts are sixty to ninety-one percent off on-demand. Always run Spot inside a Managed Instance Group with autohealing so preemption recovers cleanly. The pattern for use: fault-tolerant batch, stateless workers, build agents — never database state.
+
+Instance templates and Managed Instance Groups.
+
+One V-M is interesting. Ten thousand identical V-Ms that scale up and down by themselves is what you actually want in production. That's what Managed Instance Groups deliver.
+
+The pattern is the same on every cloud — define the shape once, ask the platform to keep N copies alive — but the GCP version has a few details worth knowing. Zonal versus regional MIGs, rolling update modes, and the way autohealing uses health checks all shape how reliably your fleet recovers from things going wrong.
+
+Start with instance templates. An instance template is a frozen recipe for a V-M: machine type, boot image, attached disks, startup script, network tags, service account, labels. You don't edit a template once it exists — you create a new version and point your MIG at the new one.
+
+That immutability is the whole point. A MIG using template v-three and another using v-four are unambiguously different fleets. Rollbacks are "point the MIG back at v-three and let it roll forward."
+
+A Managed Instance Group keeps a target number of identical V-Ms alive by creating them from an instance template, watching their health, and replacing them when they break.
+
+Two flavours. A zonal MIG keeps instances in a single zone, like us-central-one-ay. Simpler, but a zone outage takes the whole MIG down. A regional MIG spreads instances across three or more zones in a region. This is the default for anything you care about being up. A zone outage drops a third of your fleet; the other two thirds keep serving while the MIG works on replacements.
+
+The rule of thumb: always regional in production. The cost difference is essentially zero — you'd put V-Ms across zones anyway for high availability — and the resilience win is large.
+
+Four features sit on top of every MIG.
+
+Autoscaling grows or shrinks the group based on C-P-U, load-balancer requests-per-second, a Cloud Monitoring metric, or a schedule. You define a min and max number of replicas; the autoscaler does the rest.
+
+Autohealing watches a health check. Instances that fail it are recreated automatically. Without autohealing, a wedged process inside a V-M serves errors forever. With it, the V-M gets replaced within minutes.
+
+Rolling updates handle template changes. You change the instance template, the MIG cycles old V-Ms out and new ones in, with control over batch size and surge.
+
+Instance protection marks specific instances as "don't touch" during scale-in or rolling updates. Useful for the one V-M holding warm state you can't easily recreate.
+
+Unmanaged Instance Groups are the opposite — a hand-curated bag of V-Ms that share nothing in common except your decision to group them. They exist for legacy load-balancer backend compatibility. Don't reach for them for anything new.
+
+Rolling updates have three modes worth knowing.
+
+Proactive replaces existing instances immediately, in waves. This is the standard production rollout.
+
+Opportunistic only replaces instances when they're naturally recreated — autohealed, scaled, or manually deleted. Used for long-tail rollouts with no urgency.
+
+Canary applies the new template to a fraction of instances first. If happy, you promote to all. Used for risky changes you want to observe before fully committing.
+
+Three control knobs are worth knowing for rolling updates. Max-surge — how many extra instances the MIG can spin up beyond the target during the rollout. Higher means faster rollouts. Max-unavailable — how many instances can be down at once. Set to zero if your fleet is small and you can't afford lost capacity during rollout. And min-ready-sec — how long a new instance has to be healthy before it counts as ready. Tune this to your warmup time.
+
+Availability and what it actually buys you.
+
+You've seen the building blocks. The remaining question — given zones, regions, regional MIGs, and autohealing — is what the availability picture actually looks like in practice. Three things matter. Failure scopes. The role of health checks. And a clear-eyed view of which problems Compute Engine high availability does and doesn't solve.
+
+Walk through failure scopes. If one V-M crashes, a single V-M is down forever, a zonal MIG autoheals it, a regional MIG autoheals it, and a multi-region setup autoheals it. If one zone goes down, a single V-M is down, a zonal MIG is down — because all its instances are in that zone — but a regional MIG has the other two zones still up, and a multi-region setup has the other region up. If a whole region goes down, which is rare but happens, only multi-region setups stay up. And if a bad rollout takes down the app, regional MIGs only help if you used canary mode; otherwise the bad version is on every V-M.
+
+Most production workloads stop at the regional MIG layer. The jump to multi-region is significant in cost and complexity — mostly because of state, which we'll see in notebook thirteen on disaster recovery — and only the highest-availability requirements justify it.
+
+The last row in that mental table is the honest one. Compute Engine high availability protects against infrastructure failures. It does nothing about bad code you just deployed. Canary rollouts and good observability are what guard against that — both topics for later notebooks.
+
+Health checks deserve one more callout. A health check is a periodic probe over H-T-T-P, H-T-T-P-S, T-C-P, S-S-L, or g-R-P-C against a backend. Two distinct GCP features both use them, and the difference matters.
+
+MIG autohealing health checks decide whether to recreate an instance. Mark these conservatively. Too-strict checks lead to constant replacement during transient blips.
+
+Load balancer health checks decide whether to route traffic to an instance. These can be stricter — you want unhealthy instances out of rotation quickly.
+
+The two often look identical — slash health-z returning two hundred, for example — and that's fine. But they live in different resources and are configured separately. Notebook seven covers load balancer health checks in depth.
+
+What carries into later chapters. The Compute Engine building blocks underpin almost everything else. GKE nodes are Compute Engine V-Ms. Cloud Run runs on Compute Engine under the hood. Cloud SQL is a managed Compute Engine V-M with a database engine pre-installed.
+
+Three habits worth carrying forward. Regional MIGs by default. Single-zone deployment is a teaching aid; production is regional. Spot for stateless workers, never for state — build agents, batch jobs, render farms are right for Spot, anything holding session state, in-memory caches, or a database is wrong for Spot. And the cost lever you most often miss: Sustained Use Discounts apply automatically, but Committed Use Discounts need to be bought. Steady-state spend without C-U-Ds is the most common cost-optimization win on the table for a team that's been on GCP for a year and hasn't looked at billing yet.
+
+Notebook four leaves Compute Engine and steps up the stack to Cloud Run, Cloud Functions, and GKE. Where the platform manages more, you manage less, and the trade-off — cold starts, container constraints, less hardware choice — starts to bite.

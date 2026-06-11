@@ -1,0 +1,97 @@
+Pub-Sub — the messaging backbone.
+
+Pub-Sub is GCP's flagship messaging primitive — a globally distributed publish-subscribe service that decouples producers from consumers. It's the substrate behind most event-driven architectures on GCP, and it's used internally by nearly every Google product that needs to fan out events at scale.
+
+The shape is similar to Kafka or AWS S-N-S plus S-Q-S, but the operational model is different. No brokers, no partitions to manage in regular Pub-Sub, no Zookeeper. You create topics, publish messages, and let GCP handle storage, replication, and delivery.
+
+The model — topics, subscriptions, messages. A topic is a named channel. Producers publish messages to it. A subscription is a named consumer pipeline attached to a topic. Each subscription gets its own copy of every message published. A message is a blob of bytes plus a map of attributes — string key-value pairs — an optional ordering key, and a publish timestamp.
+
+One topic, multiple subscriptions is the typical shape. The same event delivered independently to N consumers, each tracking its own progress. Compare to Kafka where consumer groups serve this role; in Pub-Sub each subscription is the explicit configuration object.
+
+Two subscription delivery modes. Pull — the subscriber calls Pub-Sub to fetch messages. Used by long-running workers like Dataflow or Cloud Run with a poller. The subscriber controls the rate. Push — Pub-Sub H-T-T-P-POSTs each message to a URL you configure. Used to invoke Cloud Run or Cloud Functions automatically on each event. Pub-Sub controls the rate, with backoff on errors.
+
+At-least-once delivery is the default. Messages may be redelivered if the subscriber's ack times out. Design consumers to be idempotent — notebook thirteen's continuous-integration patterns lean on this for retries.
+
+Exactly-once delivery is opt-in per subscription, with some throughput and latency cost. Pub-Sub adds dedup tracking so a successfully-acked message is never redelivered. Worth turning on for any pipeline whose output is non-idempotent — charging a credit card, sending an email.
+
+Features that shape real designs. Ordering keys — when set on publish, all messages sharing an ordering key are delivered to that subscription in publish order. Use for per-entity ordering — per-user, per-account. Without an ordering key, Pub-Sub doesn't guarantee order; the parallelism is the whole point.
+
+Dead-letter topics — after N delivery attempts to a subscription, route the message to a dead-letter topic. Standard pattern for handling poison messages without blocking the queue.
+
+Schemas — register an Avro or Protobuf schema with a topic. Messages published with mismatched schemas are rejected. Useful for cross-team contracts.
+
+Snapshots and seek — seek lets a subscription replay from a past timestamp within retention. Snapshot captures a subscription's acked state for later restoration. Used for backfills and incident recovery.
+
+Filtering — subscriptions can carry an attribute filter, like attributes dot event-type equals order-placed. Pub-Sub only delivers matching messages, saving you the receiving-and-discarding on the consumer.
+
+Retention — messages are retained seven days by default, configurable up to thirty-one. Replay within that window via seek.
+
+Pub-Sub Lite is a separate, lower-cost variant. Regional, not global. Partitioned, like Kafka. Zonal storage. Used for very high-throughput workloads that can tolerate regional scope and want Kafka-like cost shape. Most teams should default to regular Pub-Sub. Reach for Lite only with measured cost reasons.
+
+Eventarc, Workflows, Cloud Tasks, Cloud Scheduler.
+
+Pub-Sub is the messaging substrate. Built on top of it — and sometimes alongside it — are four products that shape how events become work. Eventarc for event routing. Workflows for orchestration. Cloud Tasks for rate-controlled async work. Cloud Scheduler for cron.
+
+They overlap enough that picking the right one is the core decision. The section closes with a clear separation.
+
+Eventarc is GCP's event-routing layer. You create a trigger that says "when event X happens, send it to destination Y." Behind the scenes Eventarc uses Pub-Sub topics and subscriptions. The abstraction layer adds source catalogues and standardised CloudEvents-formatted payloads.
+
+Event sources. Google sources — GCS object events, Audit Log entries like admin actions and eye-ay-em changes, Cloud Build status changes, Firestore document writes, BigQuery job completion. About one-hundred-forty services in total. Custom sources — publish a CloudEvent to a Pub-Sub topic; Eventarc routes from there. And third-party — supported event providers like SaaS apps that publish CloudEvents.
+
+Destinations are Cloud Run services, Cloud Functions, Workflows, or GKE workloads.
+
+Why use Eventarc over raw Pub-Sub: the source catalogue. Wiring a GCS bucket to fire on object creation through Eventarc is one trigger config. Through raw Pub-Sub you'd configure GCS notifications, the topic, the subscription, and the consumer separately. Eventarc is the easy button for "when thing happens in GCP, run my code."
+
+Workflows is GCP's orchestrator. You write a Y-A-M-L definition that calls A-P-Is — GCP, third-party, internal — in sequence, with control flow, parallel branches, retries, and error handling. The engine runs each step, retains state between calls, and handles long-running operations natively.
+
+Why this exists separately from Cloud Functions or Cloud Run. A Workflow can wait for hours or days between steps — waiting on a human approval, a polling completion — without billing for idle compute. The state lives in the Workflow execution, not in a long-lived process. This makes it the GCP analogue of AWS Step Functions or Azure Logic Apps Standard.
+
+Use Workflows for multi-step business processes that span multiple services — like create order, then call payment A-P-I, then reserve inventory, then notify shipping. For A-P-I orchestration that needs retries and conditional branching. And for long-running async jobs that wait on external completion.
+
+Don't use Workflows for high-frequency event handlers — a Cloud Function fits better, and Workflows has overhead per execution. Or anything where the business logic is more code than Y-A-M-L. Write a Cloud Run service instead.
+
+Cloud Tasks is a task queue with explicit rate control. You create a queue, enqueue tasks — each task is an H-T-T-P request to a URL you specify — and Cloud Tasks dispatches at a rate you configure.
+
+Key features. Rate limiting — max dispatches per second, max concurrent dispatches, max retries with exponential backoff. Scheduled tasks — enqueue a task to run at a specific time via schedule-time. Used for delayed actions, like "send a follow-up email in twenty-four hours." And H-T-T-P targets — tasks call Cloud Run, Cloud Functions, App Engine, or any H-T-T-P-S endpoint. The runtime is whatever serves the target URL.
+
+When to reach for Cloud Tasks over Pub-Sub. When you need rate control — Pub-Sub delivers as fast as the subscriber can ack; Cloud Tasks throttles. Use when downstream is rate-limited — third-party A-P-Is, expensive operations. When you need scheduled tasks at the task level — Pub-Sub doesn't have this. You'd use Cloud Scheduler plus a topic. And when you're doing fan-out to specific H-T-T-P targets and care about per-target rate limiting.
+
+Cloud Scheduler is exactly what it sounds like. A fully-managed cron service. Schedules are crontab format. Targets are H-T-T-P endpoints, Pub-Sub topics, or App Engine H-T-T-P requests. Use for scheduled job triggers, periodic data syncs, daily report generation. Pair with Cloud Run Jobs from notebook four or Workflows for the actual work. Cloud Scheduler is just the trigger.
+
+Choose-what for messaging and orchestration.
+
+The overlap between Pub-Sub, Eventarc, Workflows, and Cloud Tasks confuses every team that's new to GCP. A short decision tree resolves most of the ambiguity.
+
+One event, run one Cloud Run or Cloud Function: Eventarc trigger.
+
+One event, run N independent consumers, high throughput: Pub-Sub topic with N subscriptions.
+
+Multi-step business process spanning services: Workflows.
+
+Need explicit rate control or scheduled-per-task dispatch: Cloud Tasks.
+
+Periodic cron-style triggers: Cloud Scheduler, firing into one of the above.
+
+Common confusions resolved. "Should I use Eventarc or Pub-Sub directly?" Eventarc when the event source is a Google service Eventarc already knows about — GCS, Audit Logs. Direct Pub-Sub when you need fine-grained control over schema, ordering, or retention.
+
+"Should I use Workflows or write a Cloud Run service?" Workflows when the orchestration is mostly A-P-I calls with branching and retries. Cloud Run when there's substantive business logic between calls.
+
+"Should I use Cloud Tasks or Pub-Sub for retries?" Cloud Tasks if you need per-task retry config and rate control. Pub-Sub with dead-letter if you want broadcast semantics with retry-then-dead-letter-queue.
+
+A-P-I management — Apigee X versus A-P-I Gateway.
+
+When you publish A-P-Is to external consumers — partners, mobile apps, third parties — you usually want a layer in front of your backends doing auth, rate limiting, transformation, analytics, and developer-portal hosting. GCP has two products at very different points on the complexity-and-cost curve.
+
+A-P-I Gateway is the simpler managed gateway. You define an OpenAPI spec; A-P-I Gateway exposes it as an H-T-T-P-S endpoint and routes to a Cloud Run, Cloud Functions, or App Engine backend. Built-in A-P-I key authentication, basic J-W-T validation. Pay-per-request, low fixed cost.
+
+Apigee X is the full A-P-I management platform. Policy chains — transformations, fault handling, caching, OAuth flows. A developer portal for self-service onboarding. Monetisation. Deep analytics. Significant fixed cost. Used by enterprises whose A-P-Is are products in their own right.
+
+Use A-P-I Gateway for internal-facing A-P-Is and simple external endpoints. Use Apigee X when you have an A-P-I program — versioned product A-P-Is, dev portal, monetisation, complex transformations.
+
+The choice is usually obvious from the cost-and-complexity profile. If you're asking the question, the answer is probably A-P-I Gateway.
+
+What carries into later chapters. Pub-Sub is the substrate for Cloud Audit Log streaming in notebook twelve, Dataflow streaming pipelines in notebook nine, and most real-time integrations. Eventarc fires Cloud Run on GCS uploads, Audit Log changes, and Cloud Build status. Workflows orchestrates multi-step C-I-C-D steps when Cloud Build's linear model isn't enough — that's notebook thirteen.
+
+Three habits to carry forward. Pub-Sub is the default for async fan-out. Cloud Tasks for rate-controlled H-T-T-P fan-in. Don't mix the two up. Idempotent consumers — at-least-once delivery means messages can repeat; design for it. And Eventarc over raw Pub-Sub when wiring Google events — save yourself the topic and subscription plumbing.
+
+Notebook eleven turns to security services — Cloud K-M-S, Secret Manager, Identity-Aware Proxy, Binary Authorization, Security Command Center, and the rest of the security toolbelt.

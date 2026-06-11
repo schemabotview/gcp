@@ -1,0 +1,125 @@
+Cloud Storage — classes and locations are orthogonal.
+
+Cloud Storage, abbreviated GCS, is the object store. Buckets hold objects, also called blobs. Each bucket has a globally unique name and lives in a location. Two axes shape every bucket decision.
+
+Storage class — how often you'll access the data, which trades hot-access price for cold-access price. And location — single-region, dual-region, or multi-region, which trades replication breadth for cost.
+
+The crucial bit: these two axes are orthogonal. You pick a class and a location independently. A nearline bucket in us-central-one is different from a nearline bucket in the us multi-region. People constantly conflate them; getting them clear pays off across this whole chapter.
+
+Start with storage classes. Four of them. Standard, Nearline, Coldline, Archive.
+
+Standard has no minimum storage duration. Highest at-rest price, cheapest reads. Use it for hot data — serving, current builds, active datasets.
+
+Nearline has a thirty-day minimum storage duration. Lower at-rest price, higher read price. Use it for data accessed once a month or less — backups, monthly reports.
+
+Coldline has a ninety-day minimum storage duration. Lower at-rest price still, higher read price still. Use it for quarterly access — disaster-recovery copies, long-term archives in active rotation.
+
+Archive has a three-hundred-sixty-five-day minimum storage duration. Lowest at-rest price, highest read price. Use it for once-a-year-or-less access — regulatory archives, finalised cold data.
+
+The minimum storage duration is the trap. If you write a one-terabyte object to Archive and delete it after a week, you still pay the full year of at-rest cost. Match the class to the real access cadence, not the hoped-for one.
+
+Class changes can be done object-by-object via g-cloud storage objects update with a storage class flag, or driven by lifecycle policy, which is the next section. The class is per-object, not per-bucket. A bucket's class is just the default for new objects.
+
+Location types — three of them. Region, dual-region, multi-region.
+
+A region location like us-central-one or europe-west-one replicates across multiple zones within one region. Availability service level agreement is ninety-nine point nine percent on Standard class.
+
+A dual-region location like nam-four — Iowa plus South Carolina — or eur-four replicates synchronously across two named regions. Availability service level agreement is ninety-nine point nine-five percent.
+
+A multi-region location — us, e-u, or asia — replicates asynchronously across multiple regions inside the location. Availability service level agreement is ninety-nine point nine-five percent.
+
+Dual-region is the most underrated choice. You get synchronous writes to two regions — turbo-charged Recovery Point Objective with no eventually-consistent gotcha — and the regions are named, so you know exactly where your data lives. Multi-region is convenient but the underlying replica set is opaque. Dual-region gives you explicit answers for compliance questions.
+
+Pick location at create time only. You cannot change a bucket's location once created. You'd g-cloud storage cp to a new bucket and rename in your application. Get it right the first time.
+
+GCS access and lifecycle.
+
+Once you've placed objects, four orthogonal controls shape what happens to them. Lifecycle, versioning, retention, and access. Mix and match these to fit your workload; each is independently configurable.
+
+Lifecycle rules automate class transitions and deletion. A lifecycle rule on a bucket says: under condition X, take action Y on the object. Two common shapes. If object age is greater than thirty days, set storage class to Nearline. If object age is greater than three-hundred-sixty-five days, set storage class to Archive. If object age is greater than seven years, delete.
+
+Conditions you can match on. Age in days. Created-before or custom-time-before — absolute dates. Matches-storage-class — only act on objects currently in this class. Matches-prefix or matches-suffix — filename patterns. And noncurrent-time-before — for versioned buckets, when the version became non-current.
+
+Actions are either Delete or Set-Storage-Class. Lifecycle rules run once a day; expect about twenty-four hours between hitting the condition and seeing the action.
+
+The dominant pattern. Write to Standard, downgrade to Nearline after thirty days, Archive after ninety, delete after retention. Implement that once and you'll save more on a year of storage cost than any other single optimisation in this chapter.
+
+Versioning, retention, and Bucket Lock. Object versioning is off by default. Turn it on, and every overwrite or delete keeps the prior version as a non-current object. Recovery from accidental deletes becomes trivial. But the storage bill goes up unless you pair versioning with a lifecycle rule that ages out non-current versions.
+
+A retention policy is a bucket-level minimum lifetime. Set retention-policy to seven years and no object can be deleted within seven years of creation or modification. Used for regulatory compliance.
+
+Bucket Lock locks the retention policy itself. After locking, the retention period cannot be shortened or removed — by you, your project owner, or anyone short of Google support with a documented legal process. This is the write-once-read-many compliance pattern, equivalent to S-three Object Lock or Azure immutable blob storage.
+
+The stack to remember: versioning protects against accidental damage; retention enforces minimum lifetime; Bucket Lock makes the retention itself immutable. Layered correctly, the chain is hard to break even by an attacker who steals owner credentials.
+
+Uniform versus fine-grained access. GCS has two access control models living in the same product, and the choice is a one-time bucket setting.
+
+Uniform bucket-level access, abbreviated U-B-L-A, means only eye-ay-em applies. Object access control lists are disabled. This is the modern default, and most enterprises enforce it via an Organization Policy constraint.
+
+Fine-grained access is the legacy mode. Per-object access control lists in addition to eye-ay-em. A-C-Ls predate GCS eye-ay-em and exist for backward compatibility.
+
+Always uniform for new buckets. Object access control lists are a long-tail security headache — the A-C-L on one object can override expectations set by the bucket's eye-ay-em policy. Uniform makes the access surface a single readable eye-ay-em policy.
+
+Signed URLs and signed policy documents are the answer when you need to grant short-lived, bounded access to a specific principal without giving them eye-ay-em. A signed URL is a time-limited URL that grants read or write on one object; you generate it from a service account's credentials. Signed policy documents generalise to multi-file uploads with conditions on size and content type. Both are the GCS analogues of S-three pre-signed URLs.
+
+Requester pays flips the billing for downloads — the requester, not the bucket owner, is charged for egress. Used by public-good datasets, where the bucket owner publishes and downloaders pay their own transfer costs.
+
+Encryption.
+
+All Cloud Storage data is encrypted at rest, full stop. The question is who holds the keys. Three options, escalating in operational burden and customer control.
+
+Google-managed encryption. Key held by Google. Default, automatic. Pick this unless you have a reason not to.
+
+Customer-Managed Encryption Keys, abbreviated C-M-E-K. Key held by you, in Cloud K-M-S. You create a K-M-S key and grant the GCS service agent the crypto-key-encrypter-decrypter role. Use this when compliance asks for customer-managed keys, or when you want central rotation, disable, and destroy controls.
+
+Customer-Supplied Encryption Keys, abbreviated C-S-E-K. Key held by you outside GCP. You pass an x-goog-encryption-key header per request. Use this only when regulatory rules forbid storing key material in GCP at all.
+
+C-M-E-K is the realistic enterprise default. Cloud K-M-S handles rotation, audit logs every key use, and lets you disable the key to render objects unreadable in seconds — a useful incident-response lever. The price is small: every object operation does a K-M-S A-P-I call.
+
+C-S-E-K is rare. You ship the raw key with every request; lose it, and the data is unrecoverable. Useful only when the regulator literally says "the cloud provider must never possess our keys."
+
+Cloud H-S-M sits underneath C-M-E-K as a key-storage option. Keys are generated and stored on FIPS one-forty-two Level Three hardware. Same K-M-S A-P-I, different backend. Notebook eleven covers K-M-S in detail.
+
+Block and file storage.
+
+GCS handles objects. For block storage — a virtual hard drive attached to a V-M — and file storage — an N-F-S or S-M-B share — GCP has separate products with their own shape. Most chapters won't need this in depth; the names and trade-offs are enough.
+
+Persistent Disk, P-D for short, is the original block storage. Attached to a Compute Engine V-M as a boot or data disk. Four types span the cost-performance curve.
+
+Standard, pd-standard, backed by hard drives. Cheapest, lowest I-O-P-S. Logs, archives, dev and test.
+
+Balanced, pd-balanced, backed by S-S-D. Good I-O-P-S, lower cost than full S-S-D. The general-purpose default.
+
+S-S-D, pd-s-s-d, backed by S-S-D. High I-O-P-S. Databases, latency-sensitive workloads.
+
+Extreme, pd-extreme, backed by S-S-D with provisioned I-O-P-S. Highest I-O-P-S; you tune I-O-P-S independently of size. High-end O-L-T-P.
+
+Hyperdisk is the modern replacement, rolling out across machine families. Three variants — Throughput, Balanced, Extreme — and the headline change is that performance is configured independently of capacity. With Persistent Disk, doubling I-O-P-S means doubling disk size. With Hyperdisk, you dial I-O-P-S, throughput, and capacity separately. New designs in twenty twenty-six and beyond default to Hyperdisk.
+
+Local S-S-D is a different animal. Physically attached to the V-M host, not a network-attached block device. Lowest possible latency, highest I-O-P-S. But ephemeral — the S-S-D's contents are lost when the V-M stops, terminates, or migrates. Use for scratch space, distributed caches, and temporary database state. Never use for the only copy of anything.
+
+Regional Persistent Disk synchronously replicates a Persistent Disk across two zones in a region. Used as the storage layer for regional Cloud SQL high availability, and for any do-it-yourself zonal-failover scheme.
+
+Filestore is GCP's managed N-F-S file share. Mounted by N-F-S version three clients — V-Ms, GKE persistent volumes — like any traditional file server.
+
+Four tiers. Basic HDD or Basic SSD have modest performance — dev, test, low-throughput legacy apps. Zonal has higher I-O-P-S, single zone — production GKE workloads, single-zone H-P-C. Enterprise has high availability across zones in a region — production multi-zone shared storage. Regional has multi-zone high availability and high performance — mission-critical shared file workloads.
+
+Filestore exists mostly because legacy applications expect a POSIX file system. New designs should prefer Cloud Storage with FUSE — using g-c-s-fuse — or object semantics. But you'll meet Filestore in lifts-and-shifts.
+
+Moving data in. Three ways to get bulk data into GCP, scaling by data size.
+
+The g-cloud storage cp or gsutil cp commands run a multi-threaded copy from your shell. Use them for megabytes to single-digit terabytes, one-shot.
+
+Storage Transfer Service is a server-side scheduled transfer. Use it for recurring or large transfers from S-three, Azure Blob, H-T-T-P or H-T-T-P-S, or on-prem POSIX.
+
+Transfer Appliance is rackable hardware Google ships you. You fill it, ship it back. Use it for petabyte-scale data where bandwidth would take months.
+
+Storage Transfer Service is the workhorse. Cross-cloud migration from S-three, recurring on-prem ingest, periodic sync between buckets — all in this one product. It handles checksumming, retries, and with the Premium tier, sub-hourly schedules.
+
+Transfer Appliance is genuinely a shipped box. The T-A-forty model holds about four-hundred-eighty terabytes. The T-A-three-hundred holds about three-hundred terabytes. Used when shipping a hard drive over FedEx is faster than transferring over your link. The Snowball or Data Box analogue.
+
+What carries into later chapters. GCS is the most-touched storage primitive in the rest of this course. BigQuery reads and writes GCS in notebook nine. Dataflow reads and writes GCS. Cloud Build pushes artifacts to GCS. Cloud Logging exports go to GCS via the Log Router in notebook twelve.
+
+Three habits to carry forward. Class and location are independent — pick both deliberately. Lifecycle rules pay for themselves within months — Standard then Nearline then Archive then Delete is rarely wrong. And C-M-E-K on regulated buckets, Google-managed everywhere else — don't over-engineer encryption for buckets that hold non-sensitive artifacts.
+
+Notebook six is networking — V-P-Cs, subnets, firewall rules, and how Cloud Run, GCE, and GCS actually talk to each other privately.

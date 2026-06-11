@@ -1,0 +1,89 @@
+NoSQL — Firestore and Bigtable.
+
+When relational doesn't fit, GCP offers two very different NoSQL options. Firestore for document-shaped data with real-time features, and Bigtable for very-wide-column data at extreme scale. They look superficially similar — both NoSQL, both managed — and have almost nothing in common operationally. Pick on data shape and access pattern, not on the word NoSQL.
+
+Firestore is GCP's document database. Data is organised as collections of documents. Documents are nested J-S-O-N-like maps. Collections can be nested under documents — those are called sub-collections.
+
+Two modes, irreversibly chosen at database creation. Native mode is the modern Firestore. Real-time listeners, mobile and web client S-D-Ks with security rules, strong consistency on document reads. The default for new projects. Datastore mode is the legacy App Engine Datastore A-P-I surface, kept for backward compatibility. Don't pick this for new work.
+
+Strengths. Real-time listeners — clients subscribe to a query and get push updates on writes. The substrate behind a lot of consumer apps — chat, collaborative editing, live dashboards. Offline mode — mobile and web S-D-Ks cache locally and sync when the connection returns. Security rules — declarative auth rules that run on the server, scoped per document or path. Lets you ship mobile apps that talk to Firestore directly without a backend. And multi-region replication — configurations like nam-five or eur-three replicate across regions for high availability.
+
+Limits to watch. Composite indexes are explicit. Queries that filter on multiple fields need an index you declare; the S-D-K error tells you what to create. Single-document throughput. A single document is a hot spot — sustained writes greater than one per second on the same doc need re-modelling. And no joins — you denormalise.
+
+When Firestore is right: mobile and web app backends, real-time collaborative features, semi-structured documents like orders, profiles, content. When it's wrong: heavy relational queries, analytical workloads, or sustained high write throughput on individual documents.
+
+Bigtable is GCP's wide-column NoSQL database, the same engine Google uses internally for Search, Maps, and Gmail. Wire-compatible with the H-Base A-P-I. It scales horizontally to petabytes and millions of reads and writes per second on a single cluster.
+
+The data model. Tables contain rows. Rows are identified by a single row key, a byte string. Each row has one or more column families. Each family contains arbitrary columns. Cells — meaning row by column — can hold multiple versions over time.
+
+The single most important design decision: row key design. Bigtable distributes rows across nodes by row key prefix. A row key that puts all of yesterday's writes in the same prefix creates a hot tablet. A row key that mixes recency with another high-cardinality field spreads load. Real-world keys often look like user-I-D hash reverse-timestamp to scatter writes while keeping per-user reads contiguous.
+
+Operational shape. Cluster nodes — you pick how many, and you can scale up or down. Autoscaling is available based on C-P-U. Replication — multi-cluster instances replicate across zones or regions. Reads can route to the nearest replica; writes propagate asynchronously. And app profiles — per-application routing policies, single-cluster or multi-cluster, with failover behaviour.
+
+When Bigtable is right: time-series data, I-o-T telemetry, ad-tech, fraud detection — anything with very high write throughput, key-based access, and terabyte-to-petabyte scale. When it's wrong: small datasets — Bigtable charges by node-hour and the minimum cost is meaningful — or anything needing rich queries, secondary indexes, or transactions across rows.
+
+Spanner — globally distributed strong consistency.
+
+Spanner is the GCP database that has no equivalent on AWS or Azure. It's a SQL database that scales horizontally across regions with strong consistency and A-C-I-D transactions, including transactions that span multiple regions. The trick is TrueTime — a Google-internal time A-P-I backed by G-P-S and atomic clocks that gives the storage layer a globally-consistent notion of "now."
+
+This is GCP's most differentiated database product. It's also the most expensive at small scale. Understanding when to reach for it, and when not to, is the headline of this section.
+
+Architecturally, Spanner separates compute — query processing — from storage — replicated and distributed. You provision nodes, or processing units, and the engine scales horizontally as you add them. Storage is automatically sharded into splits by primary key.
+
+Three region configurations. Regional — three replicas in three zones of one region. Cheaper, comparable to Cloud SQL high availability in shape. Dual-region — two regions with five replicas. Better recovery-time and recovery-point objectives than single-region. And multi-region — three or more regions, the headline mode. Synchronous writes globally, with read-only replicas in additional regions. Sub-second writes across continents, Paxos-coordinated through TrueTime.
+
+Schema features that matter. Interleaved tables physically co-locate child rows with their parent — a customer dot orders interleaved under customer. Joins across the interleave are local to one split. Secondary indexes are global by default and can be made interleaved — local to a split — for performance. And foreign keys, check constraints, online schema migrations are all supported. Spanner is a full relational database, not just a key-value store with SQL skin.
+
+Spanner versus Cloud SQL — when each is right. Cloud SQL is right for single-region O-L-T-P, tens of terabytes, ordinary scale, pay-as-you-go. Spanner is right for horizontal write scale, multi-region writes, very large datasets, very high transactional throughput. Always expensive.
+
+Cost shape. Spanner bills per node-hour, or per processing unit for very small instances. A small regional Spanner is around seven hundred dollars per month minimum — significantly more than Cloud SQL at the same scale. The crossover where Spanner becomes the obvious choice is around the point where Cloud SQL needs read replicas, write sharding, or multi-region active-active.
+
+BigQuery — the analytics warehouse.
+
+BigQuery is GCP's data warehouse. It's the product most teams who use GCP at all eventually adopt — even teams whose application database is on AWS R-D-S or Azure SQL often end up pulling data into BigQuery for analytics. The shape is sufficiently different from a traditional warehouse like Redshift, Synapse, or Snowflake that it's worth understanding from first principles.
+
+The headline architectural fact: BigQuery's storage layer — called Capacitor, columnar — and its query engine — called Dremel — are entirely separate. You pay for them independently. Adding storage doesn't add compute capacity. Adding compute capacity, called slots, doesn't grow storage.
+
+This matters because it changes the cost shape. Storage cost is per gigabyte-month for active tables, and lower per gigabyte-month for tables not modified in ninety days — that demotion is automatic. Compute cost has two pricing models, picked per query or per organization. On-demand — pay per terabyte scanned by the query. Free to start, predictable per-query, but a runaway query is expensive. Or Editions, also called Capacity — pre-purchase slot-hours via the Standard, Enterprise, or Enterprise Plus tiers, with autoscaling slots. Cheaper at scale, requires commitment.
+
+Slots are the unit of compute. One slot is roughly one virtual C-P-U's worth of query execution. Editions reserve a baseline of slots; autoscaling adds more on demand within a configured ceiling. Slots are dynamic at the query level — a single big query can briefly use the entire reservation.
+
+Partitioning, clustering, materialised views. The two table-design knobs that matter for cost and performance.
+
+Partitioning splits a table by date — ingestion-time or a date column — or by integer range. Queries that filter on the partition column scan only the relevant partitions. Pruning is the term for this. Aggressive partitioning plus pruning is the single biggest cost-control lever in BigQuery.
+
+Clustering sorts data within each partition by up to four columns. Queries that filter on clustered columns can skip data blocks without scanning them. Use for high-cardinality columns commonly used in where clauses — user-I-D, customer-I-D, event-type.
+
+Materialised views maintain a precomputed query result that updates as the base table changes. The query optimiser automatically rewrites queries to hit the materialised view if it matches. Use for aggregations that hit many queries — daily revenue per region, top-N.
+
+B-I Engine is an in-memory accelerator for B-I workloads. Reserve a memory amount, and matching queries serve from the in-memory cache sub-second. Mostly transparent — B-I tools like Looker, Looker Studio, Tableau benefit automatically.
+
+Other BigQuery features worth naming. Federated queries — query data in Cloud SQL, Spanner, GCS, Bigtable directly from BigQuery without E-T-L. Useful for ad-hoc exploration, not for steady-state pipelines. Streaming inserts — append rows in real time via the Storage Write A-P-I. Latencies on the order of seconds. Supports Pub-Sub-to-BigQuery direct subscriptions. BigQuery M-L, abbreviated B-Q-M-L — train and inference linear regression, logistic regression, k-means, time-series forecasting, and call Vertex A-I models from SQL. Lower bar to entry for analytics teams than Vertex A-I proper. BigQuery Omni — query data in S-three on AWS or Azure Blob from BigQuery, where the compute runs in the other cloud. Used for multi-cloud analytics without copying data. And authorized views — share a view, defined as a SQL query over base tables, without granting access to the base tables. Standard fine-grained-access pattern.
+
+Pipelines and B-I.
+
+Data rarely arrives in its final shape. Three GCP products handle the pipelines between source systems and analytical stores. Dataflow — streaming and batch unified. Dataproc — managed Spark and Hadoop. And Pub-Sub, which we'll meet properly in notebook ten. Looker and Looker Studio close out with a one-liner on B-I.
+
+Dataflow runs Apache Beam pipelines as fully-managed jobs. Beam's value is that the same pipeline code runs batch and streaming — windowing, watermarks, late-data handling are core A-P-I concepts.
+
+Key concepts. A P-Collection is a dataset, bounded — batch — or unbounded — streaming. A P-Transform is an operation on P-Collections — Map, GroupByKey, Combine, Window, and so on. A Window is a slice of an unbounded P-Collection — fixed, sliding, session windows. And a Watermark is Beam's estimate of "event time we've seen up to." Drives when windows close.
+
+Streaming Engine is Dataflow's modern execution backend. State separated from compute, autoscaling smoother, snapshotting supported.
+
+Common shape: Pub-Sub to Dataflow to BigQuery. A streaming pipeline pulls messages from Pub-Sub, transforms them — parse, enrich, deduplicate — and writes to BigQuery streaming inserts. Beam's windowed aggregations let you emit per-minute or per-hour rollups.
+
+Dataproc runs Apache Spark, Hadoop, Hive, Presto, and friends on GCP-managed clusters. Used by teams with existing Spark or Hadoop code that they want to migrate to the cloud without rewriting.
+
+Three flavours. Dataproc clusters — long-running or ephemeral clusters you provision and manage. Dataproc Serverless — submit a Spark job, GCP runs it without you provisioning a cluster. The right default for new work. And Dataproc Metastore — managed Hive metastore as a service, for sharing schemas across multiple compute engines.
+
+Choose-what for pipelines. Dataflow for new pipelines, Beam-shaped code. Dataproc for existing Spark or Hadoop investments that would be costly to rewrite. New analytical work in twenty twenty-six is usually better served by Dataflow plus BigQuery.
+
+Looker is Google's full B-I platform with a semantic layer called LookML, used by data teams that want governed metrics, embedded analytics, and rich dashboarding. Paid product. Looker Studio, formerly Data Studio, is the free, lightweight reporting tool — drag-and-drop dashboards over BigQuery, GCS, GA-four, and other sources. Used widely for internal dashboards where the rigor of Looker isn't needed.
+
+A short decision tree to close out. Document-shaped data with real-time or offline needs: Firestore. Time-series, I-o-T, wide-column at extreme scale: Bigtable. Globally distributed SQL with A-C-I-D transactions: Spanner. Analytical SQL over terabytes-plus of data: BigQuery. E-T-L or streaming pipelines: Dataflow with Beam for new, Dataproc for existing Spark. And self-serve dashboards: Looker Studio for ad-hoc, Looker for governed.
+
+What carries into later chapters. BigQuery is the most-touched analytical store in the rest of this course. Cloud Audit Logs export to BigQuery for analysis in notebook twelve. Billing data exports to BigQuery via the B-Q billing export in notebook fourteen. Cloud Logging routes log buckets to BigQuery sinks for SQL-over-logs.
+
+Three habits to carry forward. Partition BigQuery tables on a date column. Untouched tables become expensive faster than expected; partitioned ones scale gracefully. Spanner only when global writes are real — it's the right answer to a specific problem and overkill for most. And Firestore documents are not relational rows. Denormalise; design for read patterns; expect to model differently than you would in Postgres.
+
+Notebook ten picks up Pub-Sub and the integration and messaging surface in detail.

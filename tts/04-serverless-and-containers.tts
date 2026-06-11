@@ -1,0 +1,103 @@
+Cloud Functions — code that runs on events.
+
+The simplest compute primitive on GCP. You write a single function, hand it to GCP, and it runs whenever something specific happens. An H-T-T-P request, a pub-sub message, a file landing in Cloud Storage. No servers to provision, no containers to build — the platform builds one for you — no scaling to configure.
+
+This is the smallest unit of compute on GCP, and it's also the most opinionated. Knowing where its sweet spot is, and where it stops being the right answer, saves a lot of pain.
+
+The second-generation Cloud Functions are built on top of Cloud Run plus Eventarc. That's a meaningful architectural detail. A deployed gen-two function is a Cloud Run service with a specific entry-point contract and an Eventarc trigger wired up by GCP. Everything Cloud Run can do — longer execution timeouts, concurrent requests per instance, larger machine sizes, traffic splitting — Cloud Functions gen-two can do, because it's the same engine underneath.
+
+Gen-one still exists for backward compatibility. For anything new, use gen-two.
+
+Two trigger kinds. H-T-T-P triggers — the function gets a public or eye-ay-em-protected H-T-T-P-S URL. The request arrives as a normal Flask or Express-shaped request object. And event triggers via Eventarc — the function fires on pub-sub messages, Cloud Storage object events, Firestore writes, Audit Log entries, Cloud Build status changes, or any Eventarc source.
+
+Constraints worth knowing. Execution timeout up to sixty minutes for H-T-T-P and nine minutes for event-driven, well past the gen-one cap. Memory and C-P-U up to thirty-two gibibytes and eight v-C-P-U — bigger than most teams realise. And concurrency up to one thousand concurrent requests per instance — gen-one was strictly one-per-instance — so cold starts amortise across requests.
+
+When is Cloud Functions right. A small, well-defined reaction to one specific event. "When this file lands, resize it." "When this pub-sub message arrives, write to BigQuery." When the function grows past one event source or wants to share libraries with another, you're already on Cloud Run. Promote it there explicitly and stop pretending it's still a function.
+
+Cloud Run — GCP's headline pa-ass.
+
+Cloud Run is where GCP's centre of gravity lives. If you can package your workload as a container that listens on a port, Cloud Run will run it. Scaling to zero when idle, scaling out to thousands of instances under load, billing per millisecond of actual execution, with zero infrastructure to manage.
+
+It sits between Cloud Functions — one event, one function — and GKE — a whole cluster you operate. For most stateless H-T-T-P and event-driven workloads on GCP today, Cloud Run is the right answer. The act of deciding not to use it should require a real reason.
+
+Cloud Run Services are long-running, request-driven workloads. You give Cloud Run a container image; Cloud Run gives you back a stable H-T-T-P-S URL.
+
+Key model decisions Cloud Run hides from you. How many instances exist. Where they run. How requests are routed. What you configure.
+
+C-P-U and memory per instance, up to eight v-C-P-U and thirty-two gibibytes. Concurrency per instance, default eighty. Each instance can handle N concurrent requests. This is the big differentiator from Cloud Functions gen-one and from AWS Lambda — your container amortises cold starts across many requests. Min and max instances. Min equals zero is the default — scale to zero, cold starts on first request. Min equals one keeps one warm at a small cost. Max caps the blast radius of a traffic spike. And C-P-U allocation — request-only, meaning C-P-U only while serving, or always-allocated, meaning C-P-U during idle too, needed for background work like async tasks or streaming.
+
+Cold starts. The first request after scale-to-zero pays a cold-start cost — pulling the image, starting the container, your app's startup time. Most apps land in the two-hundred to eight-hundred millisecond range. If you can't tolerate that on the first request, set min equals one or use a warmer cron. Cloud Run also supports startup C-P-U boost to shorten cold-start C-P-U time.
+
+Traffic splitting. Every deployment creates a new revision. You can split traffic between revisions arbitrarily — ninety-ten, blue-green, canary. Combined with Cloud Deploy from notebook thirteen, this is how zero-downtime rollouts work on Cloud Run.
+
+Networking. By default Cloud Run egresses straight to the internet via a Google-managed network. To reach private resources — Cloud SQL with a private I-P, internal load balancers, on-prem via V-P-N — you wire Cloud Run into your V-P-C. Two ways. The older Serverless V-P-C Access connector requires running a small connector resource at about ten dollars a month per connector. The newer Direct V-P-C egress doesn't need a connector. Direct V-P-C egress is the default for new services in twenty twenty-six.
+
+Cloud Run Jobs run a container to completion. No port, no H-T-T-P, no "always listening." Use Jobs for scheduled batch processing, migrations, database rebuilds, the once-a-day reports, scientific compute tasks.
+
+Jobs share the same container model, eye-ay-em, networking, and observability as Services. The differences. No traffic — the job runs when you trigger it, by g-cloud run jobs execute, Cloud Scheduler cron, or Eventarc. Task parallelism — a single Job execution can fan out to N parallel tasks, each with a Cloud Run task index environment variable for sharding. And timeouts up to twenty-four hours per task.
+
+Sidecars. Both Services and Jobs support multi-container deployments. Use this for log shipping, proxies — the Cloud SQL Auth Proxy is the canonical example — or any sidecar pattern you'd use in Kubernetes.
+
+Cloud Run for Anthos is mostly historical. It's been superseded by running Cloud Run on Knative-compatible GKE clusters via the Service custom resource. Worth knowing it exists; not worth designing around.
+
+GKE — when you actually need Kubernetes.
+
+GKE is GCP's managed Kubernetes. If your workload is genuinely Kubernetes-shaped — multiple cooperating services, stateful workloads, Helm charts you can't easily rewrite, custom operators — GKE is the right answer.
+
+If your workload is not Kubernetes-shaped and you're reaching for GKE anyway, the most useful thing this section can do is talk you out of it. Cloud Run handles a startling share of what teams initially think they need a cluster for.
+
+GKE Standard versus Autopilot is the operational dial. They're the same Kubernetes A-P-I; they differ on how much of the node-and-cluster operation Google does for you.
+
+In Standard mode, you define node pools, you size them, you upgrade them. In Autopilot, Google provisions nodes per-pod. In Standard, you manage node O-S upgrades, with an auto-upgrade option. In Autopilot, upgrades are fully managed. In Standard, bin-packing is your problem — set pod resource requests right or waste nodes. In Autopilot, bin-packing is Google's problem, and you pay per pod rather than per node. Workload Identity is optional but strongly recommended in Standard; in Autopilot it's enforced. And on pricing — Standard charges for nodes, Autopilot charges per pod C-P-U, memory, and storage used.
+
+Standard's sweet spot is custom node shapes, G-P-Us or T-P-Us, large daemon sets, low-level tweaks. Autopilot's sweet spot is standard stateless apps that fit the Autopilot constraints.
+
+The default for new clusters: Autopilot. The operational savings are real. The constraints — no privileged containers, limited host-path mounts, fewer daemon-set patterns — are the same constraints you should already be enforcing in any modern Kubernetes setup. Standard is the right choice when you genuinely need control over the node shape, or daemon sets that Autopilot won't run.
+
+GKE networking. Two cluster networking modes exist; one is the modern default.
+
+V-P-C-native, also called alias I-P, gives pods and services I-Ps from secondary C-I-D-R ranges on the cluster's subnet. Pod I-Ps are routable inside the V-P-C. This is the default and the only choice for Autopilot. It's also required for several modern features — Private Google Access, internal load balancers targeting pods directly, network endpoint group based load balancing.
+
+Routes-based is legacy. Pods get I-Ps from a separate range and the cluster manages V-P-C routes for them. Don't pick this for new clusters.
+
+The cluster autoscaler scales node pools up and down based on pending pods. Node auto-provisioning, abbreviated N-A-P, goes further. It creates new node pools with appropriate shapes when no existing pool can fit the pending pod. N-A-P is the closest Standard mode gets to Autopilot — you give up some shape control to gain bin-packing.
+
+Workload Identity in GKE is the only sensible authentication pattern. We met this in notebook two. The recap because it's the central security primitive on GKE.
+
+Annotate a Kubernetes service account with iam dot gke dot io slash gcp-service-account and the Google service account email. Grant the workload-identity-user role on the Google service account to a principal of the form serviceAccount colon project dot svc dot id dot goog with the namespace and Kubernetes service account name in square brackets. Pods using the Kubernetes service account get short-lived Google credentials via the GKE metadata server. No service account J-S-O-N keys. No mounted secrets. No rotation. Autopilot enforces this. On Standard, turn it on at cluster create time. Any other pattern — google-application-credentials environment variables, mounted S-A keys — is a security regression in twenty twenty-six.
+
+Ingress and the Gateway A-P-I. GKE supports both the older Ingress resource and the newer Gateway A-P-I. Both ultimately configure GCP Cloud Load Balancing, which is notebook seven's territory. GKE Ingress is single-cluster L-seven load balancing, well-trodden, fine for most apps. Gateway A-P-I is newer, more expressive, supports multi-cluster routing and richer header and path manipulation. The way to go for any new multi-tenant or multi-cluster setup. The load balancer itself is the Global External Application Load Balancer from notebook seven — same anycast, same Cloud Armor integration, same Cloud C-D-N compatibility.
+
+Plumbing and the choose-what tree.
+
+Whichever runtime you pick — Cloud Functions, Cloud Run, or GKE — every container goes through the same two-step pipeline. Build the image. Store it somewhere your runtime can pull from. That's Cloud Build and Artifact Registry.
+
+We close with a decision tree, because the most common question in a real review is "Cloud Run or GKE," and there's a defensible answer.
+
+Artifact Registry replaced the older Container Registry, which lived at g-c-r dot io. For anything new, use Artifact Registry.
+
+Supported formats. Docker and O-C-I — the obvious one. Cloud Run pulls from here; GKE pulls from here. Maven, n-p-m, Python, apt, and yum — language and O-S package repos hosted alongside container images. And Helm charts — Kubernetes deployments often store their charts next to the images they reference.
+
+Two features worth knowing. Vulnerability scanning — Container Analysis scans images on push and continuously, surfacing C-V-Es in your dependencies. Findings flow into Security Command Center, notebook eleven. And remote and virtual repositories — proxy public registries like Docker Hub or n-p-m through Artifact Registry to get caching, vulnerability scanning, and policy enforcement on the path.
+
+Cloud Build runs container-based steps in sequence or in parallel. Each step is itself a container. The canonical step images — for Docker, for g-cloud — ship with the tools you need pre-installed. A cloud-build dot y-a-m-l file is the source of truth — it lists steps and an image to build, and the image is then pushed to Artifact Registry and deployed.
+
+Triggers kick off builds on GitHub or GitLab push events, Cloud Source Repos, pub-sub messages, or webhook calls. Private pools run builds inside your V-P-C — needed if your build needs access to private resources. Notebook thirteen covers Cloud Build plus Cloud Deploy as the canonical continuous delivery pattern.
+
+Now the decision tree. The shortest defensible version.
+
+One specific event, one piece of code: Cloud Functions gen-two.
+
+H-T-T-P service or event-driven worker, no Kubernetes-specific needs: Cloud Run.
+
+Multiple cooperating services, stateful workloads, Helm charts or operators you can't easily rewrite, custom networking: GKE. Autopilot first. Standard only if you need node-level control.
+
+Long-running stateful V-Ms, like databases you manage yourself or legacy software that can't containerise: Compute Engine, notebook three's territory.
+
+Three anti-patterns to recognise. "We need Kubernetes because we're going to scale" — Cloud Run scales to one thousand-plus instances. Test that ceiling before assuming you need GKE. "We need Cloud Run min-instances equals ten forever because cold starts" — that's a Compute Engine V-M with extra steps. Measure cold starts; consider startup C-P-U boost first. "We're putting our database on GKE" — almost always wrong. Use Cloud SQL, AlloyDB, Spanner, Firestore, or Memorystore depending on the workload. Notebooks eight and nine.
+
+Cost shape across runtimes. Cloud Functions and Cloud Run bill per-request and per-millisecond, so cost tracks usage almost linearly. GKE bills for nodes in Standard mode or per-pod resources in Autopilot, so cost tracks capacity, not requests. For bursty or low-traffic workloads Cloud Run wins on cost. For steady-state high-traffic workloads with good bin-packing, GKE wins.
+
+What carries into later chapters. Cloud Run is the default home for new services in the rest of this course. The networking pieces — V-P-C connectors, internal load balancers, Global External Application Load Balancer in front — are notebook six and seven. The deployment plumbing — Cloud Build, Cloud Deploy, Workload Identity Federation from GitHub Actions — is notebook thirteen. The observability — Cloud Run request logs, Cloud Trace spans, Cloud Profiler attached — is notebook twelve.
+
+The lesson to internalise from this chapter: GCP's container story is one container model and three places to run it. Cloud Functions wraps it for events. Cloud Run runs it as a managed service. GKE runs it inside a cluster you lightly operate. The container itself — the Dockerfile, the entry-point, the port — is the same. Choosing between the three is about how much of the surrounding infrastructure you want to own.

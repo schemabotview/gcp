@@ -1,0 +1,93 @@
+Cloud Logging.
+
+What used to be called Stackdriver is now a family of products under "Google Cloud Operations." Cloud Logging is where everything starts. It's the central log ingestion, storage, and routing service for every service GCP runs, plus your applications, plus your infrastructure.
+
+Understand the routing model first — it's the part that surprises people coming from other clouds. Every log line is captured in a project-scoped log bucket, but you can also route copies of selected logs to other destinations — BigQuery, Pub-Sub, GCS, another project's bucket — via sinks.
+
+The Log Router and log buckets. Log Router is the engine. Every log line written to a project — by GCP services, by your apps, by GKE, by anything — passes through the Log Router. The Router evaluates sinks. Each sink has a filter expression and a destination.
+
+Default sinks per project. The underscore-Required sink is non-deletable. It captures Admin Activity and System Event audit logs. Four-hundred-day retention, no charge. The underscore-Default sink captures everything else. Thirty-day retention by default. Configurable.
+
+Log buckets are the storage destination. Two built-in buckets — underscore-Required and underscore-Default — plus any you create. Custom buckets can have custom retention from one day to ten years and custom locations.
+
+Sinks to other destinations. BigQuery — for SQL analysis of logs over time. The headline pattern: stream all org-level audit logs to a central BigQuery dataset for security analysis. Pub-Sub — for real-time downstream processing, like SIEM ingestion or alerting pipelines. Cloud Storage — for long-term cold storage. And another project's log bucket — for org-wide centralisation.
+
+Log Analytics is a SQL interface over log buckets. Same data, different query path. No separate E-T-L. Useful for ad-hoc investigation when you don't already have a BigQuery sink set up.
+
+Patterns and features. Exclusion filters stop logs you don't need — verbose health checks, debug-level prod logs — from hitting underscore-Default. Cheapest way to control logging costs.
+
+Log-based metrics define a metric — counter or distribution — over a log filter. The metric appears in Cloud Monitoring. Useful when an app emits structured logs but no native metrics.
+
+Log scopes query across multiple projects from one place. Organizations slash N slash logs, or aggregated views.
+
+Structured logging — write J-S-O-N to standard out from Cloud Run, GKE, or Compute Engine. Cloud Logging parses the J-S-O-N into searchable fields. Always preferred over plain-text logs.
+
+Retention rule of thumb. Underscore-Default at thirty days is fine for most apps. Raise to ninety or longer for anything regulated. Audit Logs go to underscore-Required for four-hundred days automatically — don't lower this.
+
+Cloud Monitoring.
+
+Logs are events. Metrics are time-series numbers. Cloud Monitoring is the metric, dashboard, and alerting product. Where Cloud Logging asks "what happened," Cloud Monitoring asks "how is the system performing."
+
+Metrics scope — which replaces the older workspace — defines which projects' metrics a Monitoring view sees. Common shape: one Monitoring scope per environment — prod, dev — that aggregates all projects in that environment.
+
+Sources of metrics. Built-in metrics — GCP emits thousands. C-P-U usage, Cloud Run request counts, Cloud SQL connections, BigQuery slot usage, GCS request rate. No configuration. Custom metrics — your apps emit via the Monitoring A-P-I or OpenTelemetry. Counter, gauge, distribution. Log-based metrics — derived from log filters. And Prometheus metrics — Managed Service for Prometheus ingests Prometheus-format metrics from GKE workloads at scale, queryable via PromQL.
+
+Query languages. M-Q-L, Monitoring Query Language, for native metrics. PromQL for Prometheus metrics. Dashboards mix both.
+
+Alerting policies fire on a condition — metric threshold, log match, uptime check failure. Targets are notification channels — email, S-M-S, Slack, PagerDuty, webhooks, Pub-Sub.
+
+Uptime checks are synthetic probes from Google's network. Hit a URL every minute from N regions; alert on failure or slow response. The poor-man's external monitoring. Useful for catching issues your internal metrics wouldn't see.
+
+S-L-Os and burn-rate alerts. Service-Level Objectives — S-L-Os — are Cloud Monitoring's first-class support for S-R-E-style reliability work.
+
+An S-L-I, Service Level Indicator, is a measurable success rate. "Percent of requests returning two hundred within five hundred milliseconds." An S-L-O is the target. "Ninety-nine point five percent over a rolling twenty-eight-day window." An error budget is the gap between one hundred percent and the S-L-O. Zero point five percent of requests can fail without missing the target. And burn-rate alerts alert when you're burning the error budget faster than allowed. Two-window-two-threshold patterns — "fast burn" meaning high burn for a short window, "slow burn" meaning moderate burn for a long window — are the canonical S-R-E approach.
+
+S-L-Os avoid the "C-P-U greater than eighty percent" page-everyone trap by alerting on user-visible reliability, not on a proxy metric that may or may not correlate.
+
+Trace, Profiler, Error Reporting.
+
+Three smaller observability products complete the picture. They're often turned on once and forgotten about until you need them.
+
+Cloud Trace is distributed tracing. Apps emit spans via OpenTelemetry. Cloud Trace stores and visualises them. Cloud Run and App Engine auto-instrument; on GKE or Compute Engine you wire up the OTel S-D-K. Use to diagnose "which leg of this multi-service call is slow."
+
+Cloud Profiler is continuous statistical C-P-U and memory profiling. The agent runs in your process, samples profile data periodically, and uploads to Profiler. The U-I shows flame graphs over time. Used to find regressions — "this version uses thirty percent more C-P-U on the same load" — and hot paths to optimise.
+
+Error Reporting aggregates exceptions across services. App logs an unhandled exception, Error Reporting groups identical stack traces, you see counts and trends per error. Notifications when new error types appear. Useful for the "how often does this exception happen, and when did it start" question.
+
+Audit Logs, Asset Inventory, Service Health.
+
+The governance side of the chapter. These products answer "what happened in our org," "what exists in our org," and "is Google having a problem."
+
+Cloud Audit Logs. Every GCP A-P-I call generates an audit log. Four streams.
+
+Admin Activity — any A-P-I call that modifies config, like creating a V-M, granting eye-ay-em, or changing a bucket. Always on, can't be turned off, free.
+
+Data Access — reads or writes of data within a service, like storage dot objects dot get or bigquery dot queries dot create. Opt-in per service. Can generate huge volumes. Critical for sensitive workloads.
+
+System Event — Google-initiated actions, like live migration of a V-M or automatic maintenance. Always on, free.
+
+Policy Denied — any A-P-I call that was rejected by eye-ay-em, V-P-C Service Controls, or Organization Policy. Always on, free.
+
+Routing for analysis. The standard pattern: aggregate sink at the Org level, into a BigQuery dataset in a central project, with scheduled queries answering "who created a service account key in the last twenty-four hours," "which projects had Policy Denied events," "which service accounts impersonated other service accounts."
+
+Combine with Security Command Center, notebook eleven, for machine-learning-driven anomaly detection on top of the same log stream.
+
+Cloud Asset Inventory is a queryable index of every resource and eye-ay-em binding in your Org. Three primary uses.
+
+Search — "every V-M in europe-west-one with a public I-P," or "every eye-ay-em binding granting owner at folder X."
+
+Export — full snapshot of asset state to BigQuery or GCS, point-in-time. Used for compliance reports.
+
+Change feed — Pub-Sub notifications on asset changes. Used for real-time policy enforcement — "if a public bucket is created, alert security."
+
+It's an underrated tool. Most teams use it for the "do I have any X anywhere" question that would otherwise require iterating every project.
+
+Personalised Service Health is a per-project surface of incidents Google has detected affecting your projects — not the whole platform. Routed to Pub-Sub for downstream automation.
+
+The public status dashboard at status dot cloud dot google dot com shows ongoing platform incidents. Worth bookmarking for "is it just us" questions during incidents.
+
+What carries into later chapters. Observability is a substrate the whole course sits on. Cloud Run logs and metrics from notebook four all flow to Logging and Monitoring. S-L-O burn-rate alerts gate canary deploys in notebook thirteen. Audit Logs feed Security Command Center findings from notebook eleven. BigQuery exports of audit logs and Asset Inventory snapshots are the substrate for compliance reporting in notebook fourteen.
+
+Three habits to carry forward. Structured J-S-O-N logs from every app — plain-text logs cripple your future debugging. S-L-Os before page-on-C-P-U thresholds — alert on user-visible reliability, not on proxies. And aggregated Audit Log sink at the Org level into BigQuery — set this up once; the value compounds forever.
+
+Notebook thirteen covers DevOps — Cloud Build, Cloud Deploy, Workload Identity Federation for GitHub Actions — plus high availability, disaster recovery, and migration.

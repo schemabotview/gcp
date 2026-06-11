@@ -1,0 +1,119 @@
+Why cloud at all.
+
+You want to run software for other people to use, and you have two options. You can buy servers, rack them in a building you cool and secure, and hire people to look after them. Or you can rent that capacity by the hour from a company that already does all of that. Cloud is the second option, treated as a default. Everything that follows in this notebook comes from that one choice — what you give up, what you get, and how the trade plays out at scale.
+
+So let's pin down what cloud actually means. Cloud computing is the on-demand delivery of compute, storage, networking, and dozens of other services over the internet, paid for by what you actually consume. The provider owns the hardware, the buildings, the cooling, the security, the network. You request resources through an ay-pee-eye, they appear in seconds, and you pay only while they exist. When you stop needing them, you release them and the bill stops. That single shift, from owning capacity to renting it, changes almost every architectural decision downstream.
+
+It is worth pausing on what the old world looked like, because the gap is enormous. In the traditional model, if your company needed servers, you bought them. You waited weeks for procurement. You racked the hardware in a data center you owned or rented space in. You wired the power and cooling and networking. And you guessed how much capacity you would need eighteen months out. Guess too low, and your site went down during a spike. Guess too high, which was the safer choice, and you paid for boxes that sat idle for years. Either way, the money was spent before any workload ever ran.
+
+Cloud flips this. Capacity scales in seconds rather than weeks. The bill is operating expense rather than capital expense. The provider handles racks, power, and cooling — the undifferentiated heavy lifting. And going global stops being a foreign data center lease and becomes a configuration change.
+
+Now, cloud is not a single product. It is a stack, and you can buy in at any level of that stack. There are three service models worth knowing, and which one you consume determines how much of the operational stack you still own.
+
+Infrastructure as a service, abbreviated ay-ay-ess, is the lowest layer. The provider gives you the raw building blocks — virtual machines, virtual disks, virtual networks. You install the operating system, you patch it, you install your runtime, you deploy your application. You manage everything above the hypervisor. On GCP, this is what you get when you launch a Compute Engine V-M, attach a Persistent Disk, and place it in a virtual private cloud. Most flexibility, most responsibility.
+
+Platform as a service, or pa-ass, is the middle layer. Here the provider also manages the operating system and the runtime. You bring code and data; the platform takes care of patching, scaling, and operating the underlying machines. Cloud Run, Cloud SQL, and App Engine sit roughly here. You give up some control, but you stop spending nights on kernel patches.
+
+Software as a service, or sass, is the top layer. The provider runs the entire application, and you log in and use it. You don't manage servers, databases, or runtimes — you are a user. Google Workspace, Looker, and Apigee sit at this level, as do most of the consumer apps you already use like Gmail or Google Drive. Each step up the stack trades flexibility for less operational burden. GCP's centre of gravity sits firmly in the pa-ass layer — Cloud Run, BigQuery, Pub-Sub, Cloud SQL, GKE Autopilot — which is part of why teams that lean on managed services tend to like GCP.
+
+There is a parallel question to which layer you consume — whose cloud are you on.
+
+Public cloud is the dominant model and what most people mean when they say "cloud" — infrastructure owned by a provider like Google, AWS, or Azure, with customers sharing the underlying hardware through virtualization. This entire course assumes public cloud.
+
+Private cloud is infrastructure dedicated to a single organization, with no shared tenancy. More isolation and more control, paid for in money and operational effort. Banks, government, and regulated workloads are the typical buyers.
+
+Hybrid cloud combines the two — typically a private estate on-premises connected to a public cloud over a dedicated link. This is the reality for most large enterprises, where legacy systems are not going to move tomorrow but new workloads should land in the cloud.
+
+Multi-cloud means using more than one public provider. Appealing in theory, mainly to avoid vendor lock-in, and operationally expensive in practice, because every team needs expertise on each platform. Google's bet on hybrid is Anthos and Google Distributed Cloud, which we'll come back to in later chapters.
+
+That gives us the conceptual landscape. Next we look at how GCP itself is physically built.
+
+Where does GCP run your code.
+
+Look at a GCP map and you see regions, zones, multi-region locations, edge points of presence, and sovereign cloud variants. That is a lot of words for "where your code runs," and on a first read it looks like Google is just collecting jargon. It isn't. All of it falls out of three pressures the cloud has to handle at once.
+
+The first pressure is latency. Your users are spread around the world and the speed of light is fixed. Compute close to them is faster, full stop.
+
+The second pressure is sovereignty. Data has legal homes. E-U customer data may need to stay in the E-U. Some workloads must stay inside one country entirely.
+
+The third pressure is failure isolation. Your service cannot go down when one building loses power, one fire breaks out, or one network spine has a bad day.
+
+Each layer of the GCP footprint answers one of those pressures. Read this section as three answers and their specialised variants, not a feature catalogue.
+
+The largest unit, and the one almost everything else sits inside, is a region. A region is a physical geographic area — Iowa, Belgium, Frankfurt, Mumbai, Tokyo — containing a cluster of data centers that Google owns and operates. There are more than forty regions worldwide as of twenty twenty-six. Each region has a code such as us-central-one, europe-west-one, or asia-south-one. The number is just an identifier; it doesn't count anything.
+
+The critical property of a region is independence. Regions do not share power, networking, or control planes with other regions. A failure in one has no causal connection to another. That isolation is also why most GCP services are regional in scope — a Cloud SQL instance lives in a region, a regional Cloud Storage bucket lives in a region, a subnet lives in a region. To have a presence in another region, you deploy there explicitly.
+
+A set of services are global rather than regional, and the list is genuinely longer than on AWS. Eye-ay-em, Cloud D-N-S, the global external application load balancer, Cloud Armor, and — the GCP-unique one — the virtual private cloud itself. A single V-P-C spans every region; subnets inside it are regional. Coming from AWS, where a V-P-C is regional, this is the first conceptual surprise. We come back to it in notebook six.
+
+Inside a region, you have zones. A zone is one or more discrete data centers, each with its own power, cooling, and physical security. Every GCP region has at least three zones, named by suffix — for example us-central-one-ay, us-central-one-bee, us-central-one-see. Zones are tens of miles apart, far enough that a single fire or flood cannot take more than one, and they are connected by high-bandwidth low-latency fiber, so the network between them is fast and effectively local.
+
+Why they exist. Running across two or three zones inside a region is the foundation of high availability on GCP. Regional managed instance groups, regional Cloud SQL with high availability, regional Persistent Disks — every "regional" resource is really "multi-zone within a region."
+
+There's a subtlety here vs AWS that catches everyone the first time. GCP subnets are regional, not zonal. One subnet's I-P range spans every zone in the region. Instances are zonal, but the subnet they live in is not. This makes multi-zone deployment substantially simpler than on AWS, because you don't manage a subnet per availability zone the way you would on AWS.
+
+Above regions, GCP exposes something most clouds don't — multi-region locations. A multi-region location is a logical wrapper that spans two or more regions for storage redundancy. GCP exposes three big ones — us, e-u, and asia — plus a growing list of dual-region locations like nam-four, which is Iowa plus South Carolina. These give you the same picking-two-regions-yourself behaviour without the picking. This is what you select when you create a multi-region Cloud Storage bucket; data is replicated to multiple regions inside the location automatically. It's also what you select for a BigQuery dataset — data lives in either a single region like us-central-one or in a multi-region like us. Spanner also has multi-region configurations for synchronous replication across at least three regions. AWS and Azure don't have a direct equivalent. The closest is S-three multi-region access points or cross-region replication, which are configurations on top of regional resources. In GCP, multi-region is a first-class location type, picked at create time.
+
+Outside regions, you have edge points of presence, and the machine doing the work at the edge is the Google Front End — G-F-E for short. G-F-E is a globally distributed reverse proxy fleet. When you create a global external application load balancer, the public I-P you get is anycast: every G-F-E on the planet advertises it. A user's T-C-P and T-L-S handshake terminate at the closest G-F-E, and the request then flows over Google's own private network — not the public internet — to your backends.
+
+This matters. Your backends can be in a single region, and a user in São Paulo still gets a low-latency T-L-S handshake against the local G-F-E. It is also why Cloud Armor, the web application firewall, is applied at the G-F-E, not at the regional backend. Cloud C-D-N caches content at the G-F-E. Cloud D-N-S answers from edge points of presence by anycast. The edge is genuinely a first-class part of GCP's network, not an afterthought.
+
+Beyond ordinary regions, there are three sovereign and distributed variants worth knowing the names of. Sovereign Cloud runs GCP services under local sovereignty rules with a local partner — used for E-U sovereign workloads and regulated industries. Google Distributed Cloud Hosted is air-gapped GCP rack hardware in your facility — used for defence, intelligence, and top-secret workloads. Google Distributed Cloud Connected is GCP rack hardware on your premises connected back to a region — used for strict data residency or ultra-low latency to local industrial systems. These aren't exam-blueprint headliners, but it's worth knowing they exist so you don't confuse them with Local Zones or Outposts on AWS. They are GCP's parallel answers to the same pressures.
+
+The resource hierarchy.
+
+Everything in GCP lives inside a tree. The tree is short, only four levels, but the tree shape is the single most important fact about GCP. Every eye-ay-em binding, every Organization Policy constraint, every billing aggregation hangs off it. If you skip this section, every later notebook will feel arbitrary. If you internalise it now, the rest of the course gets noticeably easier.
+
+Four layers. The top three are containers; the bottom is the actual stuff.
+
+The Organization is the root. There's one per company, tied to a Google Workspace or Cloud Identity domain. The Organization is where company-wide eye-ay-em and Organization Policy live.
+
+Folders are optional intermediate containers. You use them to mirror business units, environments like prod and dev, or shared platforms. A folder can contain folders or projects, so the tree can be as deep as you want.
+
+Projects are the unit of isolation for resources, eye-ay-em, billing, quotas, and ay-pee-eyes. Every resource lives in exactly one project. A project has a globally unique I-D — chosen by you, like acme-payments-prod — a numeric number assigned by GCP, and a human-readable name.
+
+Resources are Compute Engine V-Ms, Cloud Storage buckets, BigQuery datasets, Cloud Run services. They sit inside a project; they cannot exist outside one.
+
+Compare this to AWS and Azure. AWS Organizations, organizational units, accounts, resources — GCP folders are roughly AWS O-Us, GCP projects are roughly AWS accounts. The shapes line up, the units differ. On Azure, management groups, subscriptions, resource groups, resources — GCP folders are roughly Azure management groups, GCP projects are roughly Azure subscriptions. There's no GCP equivalent of a resource group as a separate layer. Projects do double duty as the eye-ay-em and resource boundary.
+
+A real hierarchy in practice might have an Organization at the root, with two folders below it called platform and workloads, plus a sandbox folder. Inside platform, projects for shared V-P-C, central logging, and billing export. Inside workloads, sub-folders for dev and prod, each containing the application and data projects for that environment. Inside sandbox, projects for individual engineers to experiment in. The shape is whatever maps cleanly onto your business and security boundaries.
+
+Now the single most important rule about this tree. An eye-ay-em binding at any node applies to that node and everything beneath it. Bindings are additive going down. A binding at the Organization grants access in every project. A binding at a folder grants access in every project under that folder. A binding at a project grants access in that project only.
+
+The practical pattern. Grant broad, infrequent roles high in the tree — like billing viewer to a finance group at the Organization. Grant narrow, frequent roles at the project — like Cloud Run developer to an app team at acme-app-prod. Never grant owner at the Organization. Almost never grant owner at a folder. Project owner is sometimes fine.
+
+This cascade is what makes folders worth the bother of setting up. They let you grant once, high, instead of N times across N projects. The contrast with AWS is sharp. AWS eye-ay-em does not cascade like this. Service control policies apply across an organizational unit, but identity policies are per-account. GCP's downward inheritance is the central design decision behind the hierarchy, and the central thing to get right in real environments. Notebook two is entirely about its mechanics.
+
+Owning what you own, and choosing a region.
+
+You've seen what cloud trades, where GCP runs your code, and the tree everything hangs from. Three small but load-bearing topics close out this notebook.
+
+First, how do you actually talk to GCP. The console, the gcloud command-line tool, and the client libraries are three different doors into the same control plane.
+
+The Google Cloud Console is the web user interface in your browser. Best for learning a new service and one-off exploration.
+
+The gcloud command-line tool runs in your terminal. Best for scripting, automation glue, and ad-hoc operations.
+
+The client libraries, packages named google-cloud-something for each service, give you programmatic access from your code. Best for application code, infrastructure as code, and repeatable workflows.
+
+Underneath all three: signed H-T-T-P-S requests to a regional or global ay-pee-eye endpoint. The console is a web app calling those endpoints; the C-L-I is a thin wrapper; the S-D-K is a typed wrapper.
+
+A fourth door is worth a mention. Cloud Shell — a free Linux V-M in a browser with gcloud pre-installed and your credentials already loaded. It's the fastest way to try a command without configuring anything locally.
+
+Second, shared responsibility. When something goes wrong, whose problem is it. Google is responsible for security of the cloud — the physical buildings, the hardware, the hypervisors, the networking, and the services they operate. You are responsible for security in the cloud — your data, your eye-ay-em bindings, your firewall rules, your encryption choices.
+
+The line moves up the stack as the service gets more managed. On Compute Engine, you patch the guest operating system. On Cloud SQL, Google patches the database engine, but you still own users, queries, and backup configuration. On Cloud Storage, Google guarantees durability, but you own the data and the bucket policies. On Cloud Run, Google manages everything from hypervisor to runtime to scaling, but you still own the container image, the environment config, and the eye-ay-em bindings. The line moves up, but responsibility for what you put in and who you let see it never goes away. Cloud Run and BigQuery push that line further up than Compute Engine does, and that's the GCP centre-of-gravity I mentioned earlier showing up in practice. Notebook twelve covers observability and governance in depth.
+
+Google also publishes its own architecture lens, the Architecture Framework, with six pillars. Operational excellence; security, privacy and compliance; reliability; cost optimization; performance optimization; and sustainability. The pillar names line up nearly one-for-one with AWS's Well-Architected Framework. The only GCP-specific merger is security with privacy and compliance into a single pillar. We'll come back to the framework with concrete service mappings in notebook fourteen.
+
+Third, given a planet's worth of regions, which one do you actually pick for a new workload. Four factors, in roughly this order of weight.
+
+Compliance and data residency first. Some regulations require data to stay in a country or economic zone. This is often non-negotiable.
+
+Latency second. The region closest to your users wins for backend latency. But remember — if you put a global external application load balancer in front, the G-F-E will terminate close to your users regardless of where your backends sit. The latency cost falls on the request-to-backend leg, which travels over Google's private network and is fast.
+
+Service availability third. Newer services don't ship in every region simultaneously. Check the GCP locations page for every service you need before committing.
+
+Pricing and carbon footprint fourth. Pricing varies modestly between regions. GCP also publishes a per-region carbon-free energy percentage. For sustainability-sensitive workloads, regions like europe-north-one in Finland and us-central-one in Iowa rank high. Pricing is the tiebreaker, not the driver.
+
+That gives you the foundations — the trade, the geography, the tree, and the first decision. Notebook two picks up the tree and gets into how eye-ay-em actually works on it. Members, roles, policies, conditions, service accounts, and the two-step token dance that lets external workloads like GitHub Actions impersonate a service account without holding any long-lived keys.

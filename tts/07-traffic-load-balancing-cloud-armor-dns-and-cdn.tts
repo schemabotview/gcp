@@ -1,0 +1,89 @@
+The Cloud Load Balancing family.
+
+GCP's Cloud Load Balancing is one product line with many shapes. The shapes are organised on three axes.
+
+Where it's reachable from — external, meaning the public internet, or internal, meaning inside the V-P-C.
+
+What layer it operates at — Application, meaning L-seven H-T-T-P-S, or Network, meaning L-four T-C-P or U-D-P.
+
+And geographic scope — global, one anycast I-P everywhere, or regional, one region.
+
+Not every combination exists, but most do. The matrix is a cheat sheet to come back to whenever someone asks "which load balancer."
+
+Walk through the family. Global External Application Load Balancer — public, L-seven H-T-T-P-S, global anycast. The headline load balancer for any public H-T-T-P or H-T-T-P-S service. Regional External Application Load Balancer — public, L-seven H-T-T-P-S, one region. Use it for regional-only public H-T-T-P-S with simpler operations. Internal Application Load Balancer — private, L-seven H-T-T-P-S, regional or cross-region. Use it for internal microservice routing. External Network Load Balancer in passthrough mode — public, L-four T-C-P or U-D-P, regional. Use it for non-H-T-T-P protocols, gaming, sub-millisecond paths. Internal Network Load Balancer in passthrough mode — private, L-four T-C-P or U-D-P, regional. Use it for internal database or cache fronts, network-load-balancer-style internal traffic. External Network Load Balancer in proxy mode — public, L-four T-C-P or S-S-L, global or regional. Long-lived T-C-P with T-L-S termination. Internal Network Load Balancer in proxy mode — private, L-four T-C-P or S-S-L, regional. Internal long-lived T-C-P.
+
+The headline shape this chapter focuses on is the Global External Application Load Balancer. It's the one Cloud Run, GKE Ingress, and most public H-T-T-P-S workloads sit behind. It terminates T-L-S at the Google Front End, evaluates Cloud Armor, hits Cloud C-D-N, then forwards to your backends over Google's private network.
+
+Two network service tiers affect external load balancers and external I-Ps in general. Premium tier — traffic ingresses at the nearest Google point of presence and rides Google's backbone the entire way. Default for external H-T-T-P-S load balancer. Standard tier — traffic stays on the public internet until the destination region. Cheaper, lower performance, less consistent. Acceptable for low-traffic or regional-only workloads.
+
+Anatomy of a Global External Application Load Balancer.
+
+The Global External Application Load Balancer is a chain of resources, not one resource. Walking through the chain end-to-end is the fastest way to understand what each piece does, because every other load balancer variant uses some subset of the same chain.
+
+The chain has five pieces in order. Forwarding Rule, then Target H-T-T-P-S Proxy, then U-R-L Map, then Backend Service, then Backend — which is a Managed Instance Group or a Network Endpoint Group.
+
+The Forwarding Rule binds an external anycast I-P plus port — for example a public I-P on port four-four-three — to a target proxy. This is the customer-facing resource that the public D-N-S record points at.
+
+The Target H-T-T-P-S Proxy terminates T-L-S. You attach a managed or self-managed S-S-L certificate. For H-T-T-P-only, it's a Target H-T-T-P Proxy with no cert.
+
+The U-R-L Map holds the L-seven routing rules. Match on host, path, header, or query, then dispatch to different backend services. Slash A-P-I to the A-P-I backend, slash static to a C-D-N-fronted GCS backend, everything else to the web backend.
+
+The Backend Service holds the load-balancing policy plus the list of backends. Health checks, session affinity, balancing mode — rate, utilization, or connection — Cloud C-D-N attachment, Cloud Armor attachment.
+
+The Backend is what actually serves the request. Three shapes. An Instance Group — Managed or Unmanaged — with Compute Engine V-Ms. A Network Endpoint Group, or N-E-G, with Cloud Run, App Engine, Cloud Functions, or arbitrary I-P-and-port pairs. And a Serverless N-E-G — the modern way to put Cloud Run behind a Global External Application Load Balancer.
+
+The chain looks bureaucratic the first time. Once internalised, it's flexible. One U-R-L map can fan out to multiple backend services. One backend service can serve multiple U-R-L maps. Backends can mix Managed Instance Groups and serverless network endpoint groups in the same group.
+
+Health checks live on the backend service. The load balancer only sends traffic to instances that pass the health check. Recap from notebook three: load balancer health checks are configured separately from Managed Instance Group autohealing health checks. They often look identical — slash health-z returning two hundred — but live in different resources.
+
+S-S-L certificates. Two flavours of certificate for the Target H-T-T-P-S Proxy.
+
+Google-managed. Google provisions and renews a certificate for your domain via Let's-Encrypt-style A-C-M-E. You point D-N-S at the load balancer's anycast I-P, GCP completes the challenge, and the cert lives forever, auto-renewed. The right default for public H-T-T-P-S.
+
+Self-managed. Upload your own cert and private key. Used when you have an existing C-A contract, E-V certs, or wildcards from outside Google.
+
+Certificate Manager — the newer, separate service — handles S-A-N sprawl and D-N-S-authorized certs at scale. Preferred over the older per-proxy S-S-L certificate resource for any deployment with more than about ten domains.
+
+Edge protection — Cloud Armor and Cloud C-D-N.
+
+The Global External Application Load Balancer unlocks two edge-only features that are GCP's strongest network differentiators. A real web application firewall that runs at the Google Front End, and a content delivery network that's a one-checkbox attach to your existing backend service.
+
+Cloud Armor is GCP's web application firewall. It runs at the Google Front End, before traffic reaches your backends, anywhere in the world. You attach an Armor policy to a backend service. The policy is a list of rules with priorities.
+
+Three kinds of rule. Custom CEL rules — for example, in-I-P-range origin dot I-P comma the C-I-D-R for two-zero-three dot zero dot one-thirteen dot zero slash twenty-four to allow corporate I-Ps, or request dot headers user-agent dot contains bad-bot to block by header. Preconfigured WAF rules — O-WASP Top Ten. S-Q-L injection, cross-site scripting, local-file-inclusion. Switchable in detection-only mode first, then enforcement. And rate-limiting rules — enforce on key I-P, rate limit one hundred per minute, exceed action deny four-two-nine. Throttle abusive clients without dropping legitimate ones.
+
+Two policy types. Security policy — attached to the backend service, applied per request at the Google Front End. Edge security policy — applied even earlier, before caching decisions. Used for Cloud-C-D-N-fronted content.
+
+Adaptive Protection is the Armor Premium feature that uses machine learning to detect L-seven D-DoS patterns in your traffic and propose protective rules. Worth turning on for any service that's been the target of bot activity.
+
+Notebook eleven covers Armor's positioning in the broader security stack alongside reCAPTCHA Enterprise.
+
+Cloud C-D-N — one-checkbox cache at the Google Front End. Cloud C-D-N caches H-T-T-P responses at Google Front End edge locations. Enable it by ticking the enable-c-d-n field on a backend service. There's no separate resource to provision.
+
+Cache modes. Cache static content — cache responses for two hundred, two-oh-three, two-oh-four, two-oh-six, three hundred series, four-oh-four, four-oh-five, four-ten, four-fifty-one, five-oh-one, that carry Cache-Control headers indicating cacheability. Cache all static content — cache common static M-I-M-E types like images, fonts, C-S-S, J-S regardless of headers. Force cache all content — cache everything, including responses without cache headers. Use carefully. And use origin headers — fully driven by upstream Cache-Control. Default for serving from Managed Instance Groups.
+
+Signed URLs and signed cookies authenticate access to cached content. Generate a signed URL on the application side, hand it to the user, the Google Front End checks the signature and serves from cache. Standard pattern for private C-D-N content.
+
+Negative caching caches four-oh-four and four-ten responses for short periods so a deluge of "file not found" requests doesn't slam your origin.
+
+Names — Cloud D-N-S and Service Directory.
+
+The last piece of traffic flow is name resolution. Cloud D-N-S handles authoritative D-N-S for public and private zones. Service Directory is the discovery layer for service-to-service traffic inside the V-P-C.
+
+Cloud D-N-S is GCP's managed authoritative D-N-S. Anycast nameservers around the world, high reliability, programmatic management via A-P-I or Terraform.
+
+Two zone types. Public zone — authoritative for a public domain like acme dot com. Replaces or sits alongside your existing registrar's D-N-S. Private zone — visible only inside specified V-P-Cs. Resolves d-b dot internal dot acme dot com to a private I-P for workloads inside the V-P-C.
+
+Features worth knowing. DNSSEC — signed records for public zones. One-click enable, standard. D-N-S peering — make zones in one V-P-C resolvable from another V-P-C. Typical with Shared V-P-C plus service projects, or hub-and-spoke topologies. Forwarding zones — for a given suffix, forward queries to specified resolvers, like on-prem D-N-S, so workloads in the V-P-C can resolve on-prem hostnames. Response policy zones, R-P-Zs — D-N-S-level allow-listing and deny-listing. Block resolution of known-malicious domains for any workload in the V-P-C. And routing policies — geo, weighted, failover. The Cloud D-N-S equivalent of Route fifty-three routing policies.
+
+Service Directory is a managed service registry for service discovery. A central place to register service-name to endpoints mappings, queryable via D-N-S, H-T-T-P, or g-R-P-C.
+
+Most teams won't reach for it directly. Cloud Run services have stable URLs. GKE services have cluster-I-Ps and headless services. Cloud SQL connections go through Private Service Connect. Service Directory is the right answer when you need one discovery surface across heterogeneous workloads — Cloud Run plus GKE plus on-prem plus third-party — or when you want D-N-S-based discovery without writing Cloud D-N-S zones by hand.
+
+It's quietly important infrastructure — the substrate behind Cloud D-N-S service zones and some P-S-C integrations — but rarely the headline of an architecture diagram.
+
+What carries into later chapters. The Global External Application Load Balancer is the front door to almost every public service in this course. Cloud Run gets it, via serverless network endpoint groups, from notebook four. GKE gets it, via GKE Ingress or Gateway A-P-I, from notebook four. Managed Instance Groups get it, via instance group backends, from notebook three. Cloud Armor and Cloud C-D-N attach to any of those without changing the backend.
+
+Three habits to carry forward. Global External Application Load Balancer by default for public H-T-T-P-S. Regional variants exist for ops simplicity, but the global one gets you anycast, the Google Front End, Cloud C-D-N, and Cloud Armor in one package. Cloud Armor in detection mode first, enforcement later. Turning O-WASP rules on cold is the fastest way to break legitimate traffic. Run in preview, watch the logs, then enforce. And Cloud D-N-S private zones over editing slash etc slash hosts files. They cost nearly nothing and make every internal-name change a single A-P-I call instead of a fleet-wide reconfig.
+
+Notebook eight leaves networking and starts on storage of structured data — Cloud SQL, AlloyDB, and the cache layer Memorystore.

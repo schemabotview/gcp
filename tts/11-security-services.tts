@@ -1,0 +1,85 @@
+Keys and secrets.
+
+Notebook two covered who is allowed to do what. This notebook covers how the data itself is protected, and how workloads access it without leaking credentials. The first section is the foundation — where keys live, where secrets live, and which services to use to manage both.
+
+Three products. Cloud K-M-S for encryption keys. Secret Manager for application secrets. And Cloud H-S-M as the FIPS-grade backend for K-M-S when you need it.
+
+Cloud K-M-S stores and operates encryption keys. The structure. A project contains key rings — logical groupings, location-scoped. A key ring contains crypto keys — each key has a purpose: symmetric encrypt-decrypt, asymmetric encrypt, asymmetric sign, M-A-C. A crypto key contains key versions — the actual material. Rotated by creating new versions. Old versions can decrypt and verify, but new operations use the primary version.
+
+Locations matter for K-M-S. A key is regional, multi-region, or global. When you use C-M-E-K on a resource, the key must be in a compatible location. A GCS bucket in us-central-one needs a key in us-central-one or a compatible multi-region.
+
+Rotation is automatic when you set a rotation period. New versions are minted on schedule. Old versions stay in enabled state for decrypting old data. Destroying a key version is reversible for twenty-four hours, then permanent. That's the kill switch for revoking data access.
+
+Key purposes. Symmetric encrypt-decrypt — default for C-M-E-K on GCS, BigQuery, Cloud SQL, Persistent Disk. Asymmetric encrypt, sign, or M-A-C for application-level crypto. And External Key Manager, E-K-M — key material lives in a third-party H-S-M or another cloud, and K-M-S proxies operations to it. Used when regulation forbids any GCP-resident key material.
+
+Cloud H-S-M is a backend choice for any crypto key. The underlying key is FIPS one-forty-two Level Three hardware-backed instead of software-backed. Same A-P-I; higher cost per operation.
+
+Secret Manager stores application secrets — database passwords, A-P-I keys, OAuth client secrets, certificates. Structure. A secret is a named container. A secret version is the actual value — versions are immutable; you add new versions when the secret changes. Access via A-P-I or S-D-K using eye-ay-em — the secret-accessor role.
+
+Two replication policies. Automatic — Google chooses replication regions. Highest availability. User-managed — you pick the regions. Used for residency requirements.
+
+Automatic rotation hooks let you call a Cloud Function or webhook on a schedule. The function does the actual credential rotation against the upstream and writes the new value as a new version.
+
+Patterns. At-runtime fetch — application calls Secret Manager on startup or per-request, caches the value. Pair with Workload Identity so no service account key is involved. Cloud Run secret environment variables — Cloud Run can resolve a secret into an env var at deploy time. Easy for simple cases. The value lives in the Cloud Run revision configuration, not in your source. And Cloud Run secret volumes — mount the secret as a file. Used when an application reads from disk, like T-L-S certificates.
+
+Cross-cloud comparison. Secret Manager is roughly AWS Secrets Manager, roughly Azure Key Vault for secrets. K-M-S is the key-material layer; Secret Manager is the application-value layer. Don't conflate them. Store credentials in Secret Manager, encryption keys in K-M-S.
+
+Workload and human access without V-P-N.
+
+GCP has a coherent answer to the "how do I let employees and workloads reach private resources securely" question, and that answer is mostly not a V-P-N. Identity-Aware Proxy handles human access. Workload Identity — recap from notebook two — handles workload access.
+
+Identity-Aware Proxy, I-A-P for short, is zero-trust web access. I-A-P sits in front of web apps and T-C-P services. It authenticates the caller — Google identity, optionally with Conditional Access via Access Context Manager — checks eye-ay-em on the resource — the I-A-P resource accessor role for web, or the I-A-P tunnel resource accessor role for T-C-P — and forwards the request to your backend.
+
+Two modes. I-A-P for H-T-T-P-S — protects apps behind a Global External Application Load Balancer. Web apps, internal tools, dev portals. User browses to the URL, gets Google sign-in, I-A-P checks eye-ay-em, traffic flows to your Cloud Run, GKE, or Compute Engine backend. And I-A-P for T-C-P — proxies S-S-H via g-cloud compute s-s-h with tunnel-through-i-a-p, plus R-D-P and arbitrary T-C-P to private V-Ms. Replaces bastion hosts.
+
+Why it matters. Before I-A-P, the standard pattern was "V-P-N into the V-P-C, then talk to internal services." With I-A-P, internal services are exposed over the internet but gated by Google identity plus eye-ay-em. No V-P-N, no bastion. This is BeyondCorp, or zero-trust, as a configuration.
+
+I-A-P can layer Access Context Manager levels on top. "Only allow from corporate I-Ps and trusted devices and office hours" for sensitive resources. Add Cloud Identity-Aware Proxy plus Context-Aware Access for the full zero-trust shape.
+
+Workload Identity recap. Covered in notebook two. Recap because it belongs in the security toolbelt. GKE Workload Identity — Kubernetes service account impersonates a Google service account. No mounted J-S-O-N keys. And Workload Identity Federation — external workloads like GitHub Actions or AWS eye-ay-em roles impersonate a Google service account via the two-step S-T-S plus generate-access-token dance.
+
+The security goal both achieve: no long-lived service account J-S-O-N keys exist anywhere. Organization Policy iam dot disable-service-account-key-creation enforces this. The combination is GCP's most-distinctive security primitive. Adopt it everywhere.
+
+Workload integrity.
+
+Knowing who can talk to your services is half the security story. The other half is knowing what code is running in those services. Two products cover this. Binary Authorization for container image provenance. Confidential Computing for memory-level isolation.
+
+Binary Authorization enforces a policy at deploy time. Only container images that meet your rules can run on GKE, Cloud Run, or Cloud Run for Anthos.
+
+The model. Attestors are signers — Cloud K-M-S keys — that vouch for an image. "This image passed our vulnerability scan." "This image was built by the prod Cloud Build pipeline." Policy says: "deployment requires attestations from attestors X and Y." Per-project, per-cluster, per-namespace granularity. Enforcement modes — enforced blocks non-compliant deploys, dry-run logs without blocking.
+
+Typical chain. Cloud Build runs the build, scans the image with Container Analysis. If the scan passes, Cloud Build calls an attestor — a Cloud K-M-S key — to sign the image digest. Cloud Deploy or kubectl deploys the image. Binary Authorization checks the policy: is there an attestation from our vuln-scan-passed attestor and our prod-pipeline attestor? Yes — run. No — reject.
+
+This is the right answer to "how do I prove only reviewed, scanned, and built-by-the-right-pipeline code runs in prod."
+
+Confidential Computing. Confidential V-Ms and Confidential GKE Nodes use AMD S-E-V — or Intel T-D-X on newer instances — to encrypt V-M memory with a key the hypervisor doesn't have. The result: even GCP's own infrastructure can't read your process memory.
+
+Use case is narrow. Extremely sensitive workloads where you need cryptographic proof that no party, including the hypervisor, can read your memory. Common in defence, healthcare, multi-party computation. For most workloads, the standard hypervisor isolation is enough. Confidential Computing is the answer to a specific threat model, not a general default.
+
+Detection, posture, and edge protection.
+
+The last section is the security operations surface — what you turn on to actually see what's happening across the org. Security Command Center is the umbrella. Cloud Armor — recap from notebook seven — is the edge. reCAPTCHA Enterprise is the bot-protection layer.
+
+Security Command Center, S-C-C for short, is GCP's central security-posture and threat-detection platform. Three tiers. Standard — free. Some posture findings, eye-ay-em Recommender, basic Web Security Scanner. The minimum baseline. Premium — paid. Full posture management, Event Threat Detection — anomalous logins, eye-ay-em grants — Container Threat Detection, Continuous Exports to Pub-Sub or BigQuery. And Enterprise — adds case management, S-O-A-R-style playbooks, more integrations. The full security operations product.
+
+Findings come from many sources. Cloud D-L-P, also called Sensitive Data Protection, finds P-I-I in your data. Container Analysis surfaces vulnerability scan results from Artifact Registry. Event Threat Detection finds anomalies in audit logs. Web Security Scanner finds web-app vulnerabilities. And custom sources — third-party tools push findings via the A-P-I.
+
+Posture management evaluates your configuration against benchmarks — C-I-S, NIST — and surfaces gaps. "This bucket is public." "This V-M has a public I-P without a firewall rule." "This service account has owner permissions." Continuous Exports send findings to BigQuery for analysis or Pub-Sub for downstream automation.
+
+S-C-C Premium is the right baseline for any organisation with more than a handful of projects.
+
+Cloud Armor recap from notebook seven. The edge web application firewall. Two policy types worth re-emphasising. Security policy is attached to a backend service. Evaluates at the Google Front End, before the backend. Edge security policy is applied earlier, before Cloud C-D-N cache decisions.
+
+For a deeply layered defence: Edge security policy, then Security policy, then I-A-P, then backend eye-ay-em. Each layer is independent and additive.
+
+reCAPTCHA Enterprise is the production version of the well-known reCAPTCHA bot-detection. It gives you risk scores per request — zero point zero meaning bot, one point zero meaning human — rather than a binary pass or fail.
+
+Common shapes. Score-based — reCAPTCHA runs invisibly; your app uses the score to decide friction — allow, multi-factor authentication, or block. Account defender — detect compromised accounts based on behaviour patterns. And multi-factor authentication via WebAuthn — bundled M-F-A backed by reCAPTCHA risk signals.
+
+Pairs with Cloud Armor — reCAPTCHA scores can drive Cloud Armor rules at the edge.
+
+What carries into later chapters. K-M-S and Secret Manager are quietly everywhere — C-M-E-K on storage from notebook five, secrets in Cloud Run environment variables from notebook four, encrypted Cloud SQL backups from notebook eight. I-A-P is the right answer for any internal-tool admin U-I in notebook thirteen's continuous-integration work. Security Command Center findings feed into the governance posture in notebook twelve.
+
+Three habits to carry forward. No service account J-S-O-N keys, anywhere — Workload Identity Federation for external workloads, Workload Identity for GKE, attached service accounts for everything else. Enforce via Organization Policy. I-A-P over V-P-N for human access — less infrastructure, finer-grained, multi-factor authentication built in. And Security Command Center Premium turned on early — cheaper than the first incident it catches.
+
+Notebook twelve turns to observability — Cloud Logging, Cloud Monitoring, Cloud Trace, Cloud Profiler, Audit Logs, and Cloud Asset Inventory.

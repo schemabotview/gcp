@@ -1,0 +1,125 @@
+Who's actually asking.
+
+Every action on GCP is some principal trying to do something to some resource. Before you can talk about what they're allowed to do, you have to pin down who they are and where they live. That's the job of this first section.
+
+GCP has more principal types than most clouds. Some are humans, some are workloads, some are bags of humans — groups — and some are everyone on the internet. Each type sits in a different place and gets fed into eye-ay-em the same way.
+
+Start with the directory of humans. GCP needs a directory of people to grant access to, and two products do that job. They are nearly the same thing under the hood. The first is Google Workspace, the paid productivity suite — Gmail, Drive, Calendar — bundled with a user directory. The second is Cloud Identity, which is the directory without the productivity apps. Cloud Identity is free at the basic tier and paid for premium features. Either way, you end up with a domain like acme dot com and a set of users like alice at acme dot com. Those users are what GCP eye-ay-em bindings reference. The Organization node from notebook one is bound to one of these directories at create time.
+
+Real-world directories almost never stand alone. You'll plug hybrid sources into them. Google Cloud Directory Sync, abbreviated G-C-D-S, pulls users and groups from on-prem Active Directory or L-D-A-P. Okta, Ping, or Azure Active Directory can federate via S-A-M-L for sign-in — the user still appears to GCP eye-ay-em as alice at acme dot com. And Workforce Identity Federation, the newer mechanism, lets external identity provider users access GCP without provisioning them into Cloud Identity at all. Workforce pool subjects get long structured principal IDs.
+
+Comparing across clouds: Cloud Identity is roughly Microsoft's Entra I-D in its free tier, and roughly AWS eye-ay-em Identity Center without the AWS-specific assume-role glue. The shape is recognisable from either side.
+
+Now the member types — the seven kinds of principal that can appear in an eye-ay-em binding. The first is user, a single human in Cloud Identity. The second is group, a Cloud Identity group whose membership is transitively expanded at evaluation time. The third is service account, a workload identity owned by a project. The fourth is domain, meaning everyone in your directory — almost never the right answer. The fifth is all-authenticated-users, which means any Google account in the entire world, and is dangerous. The sixth is all-users, which is fully public with no authentication, and is only ever the right answer for genuinely public buckets or services like a public website. The seventh is principal-set, used for Workforce or Workload Identity Federation subjects coming from external identity providers.
+
+The single highest-leverage habit in this whole act: grant to groups, not users. A binding to platform-team at acme dot com follows the team as people come and go. A binding to alice at acme dot com becomes orphaned the moment Alice changes roles. One pattern is durable; the other rots immediately.
+
+What are they allowed to do.
+
+A principal alone does nothing. You give them a role at a resource — or at some ancestor in the hierarchy — and the role's permissions apply. The whole game of GCP eye-ay-em is choosing the right role at the right node.
+
+Three kinds of roles exist. Two are pre-made; one you write yourself. Most engineers default to the second kind and never need the third.
+
+Primitive roles, also called basic roles, are owner, editor, and viewer. They're almost never the right choice in production — far too coarse. They're acceptable for sandbox projects where nothing valuable lives.
+
+Predefined roles are the default. Google maintains hundreds of these, scoped per service. Examples: Cloud Run developer, Cloud Storage object viewer, BigQuery data editor. They name a job, and the permissions inside are tuned to that job.
+
+Custom roles are roles you write when no predefined role is narrow enough. They're a maintenance burden you take on yourself, so reach for them only when predefined roles genuinely don't fit.
+
+Under the hood, a role is just a named bundle of permissions. Permissions are strings like storage dot objects dot get, run dot services dot create, bigquery dot tables dot update — each one corresponds one-for-one with an ay-pee-eye method. You almost never bind permissions directly. You bind roles, and the role expands to its permissions at evaluation time.
+
+The primitive-role warning is real. The owner role includes the permission resource-manager dot projects dot set-eye-ay-em-policy, which lets the holder grant owner to anyone else, including themselves on other resources. One leaked owner binding compromises the project's entire access surface. Treat owner the way you'd treat root.
+
+Now the policy model. An eye-ay-em policy attached to a resource is a list of bindings. A binding is a tuple of three fields. A role — the role being granted. A members list — the principals it's granted to. And an optional condition — a CEL expression we'll get to in a moment.
+
+Each resource has one policy, with one or more bindings inside it. The policy is replaced atomically when you change it. You cannot add a binding without reading the policy, modifying it, and writing the whole thing back. The C-L-I and S-D-K hide this with helpers like add-iam-policy-binding, but it's worth knowing the underlying model. It explains the occasional race condition you'll hit if two automated jobs try to update the policy on the same resource at the same time.
+
+A principal's effective permissions on a resource are the union of all roles granted to them by any binding on this resource or any ancestor — filtered by eye-ay-em conditions and any Deny policies. We come back to Deny in act four.
+
+Conditions on bindings. A binding can carry a condition — a CEL expression, Common Expression Language, that must evaluate to true for the binding to apply.
+
+Typical uses. Time-bound access, where the expression checks that request dot time is less than a fixed timestamp — used to expire a just-in-time grant. Resource-name prefix, where the expression checks that the resource name starts with a specific prefix — used to restrict a binding to a subset of buckets by name. And eye-pee or device gates, which limit access to corporate I-P ranges or trusted devices, via Access Context Manager.
+
+Conditions are evaluated per request at allow time. They're the closest GCP equivalent to AWS eye-ay-em policy condition blocks, though more constrained. The CEL surface you get is the request context — request dot time, request dot auth — the resource — resource dot name, resource dot type, resource dot service — and a handful of Access Context Manager attributes. Not every role supports conditions. Predefined roles must be marked as condition-eligible, and most modern ones are. The error you get when you try to attach a condition to an ineligible role is explicit and helpful.
+
+Service Accounts and Workload Identity Federation.
+
+Humans aren't the only principals on GCP. The harder case is workloads — code running somewhere that needs to call a GCP ay-pee-eye. A Cloud Run service writing to Cloud Storage. A GKE pod querying BigQuery. A GitHub Actions job deploying a new Cloud Run revision. The answer to all three is the same primitive: a service account. What differs is how the workload proves it's allowed to use that service account. That second question is where Workload Identity Federation comes in, and it's GCP's most distinctive identity feature.
+
+Start with service accounts themselves. A service account, S-A for short, is a special principal owned by a project. It has an email like deployer at acme-prod dot iam dot g-service-account dot com, and a numeric unique I-D. Three things to internalise.
+
+First, a service account can be a principal. You bind roles to it, and it can act on resources. It appears in members lists exactly like a user does.
+
+Second, a service account is also a resource. You bind roles on it — for example, service-account-user — to control who is allowed to act as it. This is the impersonation surface.
+
+Third, a service account can have J-S-O-N keys, but you almost never should create one. Long-lived service account keys are the leading cause of GCP credential incidents. The modern default is the Organization Policy constraint iam dot disable-service-account-key-creation, enforced at the org or folder level.
+
+There are two ways a workload ends up acting as a service account. Attached, and impersonated.
+
+Attached is the simpler one. When you create a Compute Engine V-M, a Cloud Run service, a Cloud Function, or a GKE workload, you attach a service account to it. The workload picks up that service account's credentials automatically via the metadata server. No keys, no config — the platform mints short-lived tokens on demand.
+
+Impersonated is the more flexible one. A different principal — a user, or another service account — calls iam dot service-accounts dot generate-access-token to get a short-lived token as the target service account. This is how C-I-C-D pipelines work, how on-call human break-glass works, and how cross-project workflows work. The impersonation pattern is the canonical way to give anything access to a target service account without keys.
+
+Workload Identity Federation, which we'll see next, is impersonation triggered by an external identity proof — instead of a Google user clicking a button, the trigger is an external token presented at the right A-P-I.
+
+Workload Identity Federation lets you grant GCP access to identities that live outside GCP — without provisioning users in Cloud Identity and without minting service account keys.
+
+Two flavours. Workforce Identity Federation, for humans signing in from an external identity provider like Okta, Azure A-D, or Ping. And Workload Identity Federation, for workloads outside GCP — GitHub Actions, AWS eye-ay-em roles, Azure service principals, on-prem Kubernetes, anything that can produce an O-I-D-C or S-A-M-L token.
+
+Both flavours flow through a Workload Identity Pool that contains one or more Providers. Each provider trusts an external identity provider and maps its claims into Google-side attributes via the attribute-mapping configuration. The attribute-condition is the gate — a CEL expression that decides which external tokens are even accepted. The classic example is: only accept GitHub O-I-D-C tokens where the subject claim matches our exact repository and our exact environment.
+
+The two-step token dance is what distinguishes GCP from AWS and Azure. AWS does assume-role-with-web-identity — one call, one result. Azure does an O-Auth token exchange at login dot microsoftonline dot com — one call, one result. GCP splits federation and impersonation into two separate calls.
+
+Step one is the S-T-S token exchange. You POST to sts dot googleapis dot com slash v-one slash token, presenting the external token, like a GitHub O-I-D-C I-D token, plus the W-I-F audience. The response is a federated access token. That federated token represents the external identity. It is not yet a Google identity — it cannot act on GCP resources on its own.
+
+Step two is generate-access-token. You call iam dot googleapis dot com slash projects slash whatever slash service-accounts slash deployer at acme-prod dot iam dot g-service-account dot com colon generate-access-token, presenting the federated token. The response is a short-lived service account access token. That's the token your workload uses to call GCP ay-pee-eyes.
+
+Step two requires the federated identity to have the role workload-identity-user on the target service account. That's the gate that connects this external identity is real to this external identity is allowed to impersonate this specific service account.
+
+For GitHub Actions, the canonical pattern is the google-github-actions slash auth at v-two action, which does both steps for you behind a single piece of config — workload-identity-provider. Underneath, it's still the two-step dance.
+
+GKE has a related but distinct feature called Workload Identity, no Federation suffix. It lets a Kubernetes service account in your cluster impersonate a Google service account, so a pod gets short-lived Google credentials by annotation rather than by mounting a key.
+
+The binding is two-sided. On the GCP side, you grant the workload-identity-user role on the Google service account to a principal of the form serviceAccount colon project-id dot svc dot id dot goog and then the namespace and Kubernetes service account name in square brackets. On the Kubernetes side, you annotate the Kubernetes service account with iam dot gke dot io slash gcp-service-account and the Google service account email.
+
+A pod using that Kubernetes service account picks up the Google service account's identity via the GKE metadata server. No service account J-S-O-N keys, no mounted secrets, no rotation. This is the default for new GKE clusters, and Autopilot enforces it.
+
+Guardrails above IAM.
+
+Eye-ay-em tells you what a principal is allowed to do. It doesn't tell you what can exist in a project in the first place, or what the network perimeter looks like, or which actions are banned regardless of any eye-ay-em grant. Those questions belong to three guardrails that sit above eye-ay-em in the hierarchy.
+
+This is where the GCP-unique answer to enterprise governance lives. AWS folds most of this into service control policies at the Organization level. GCP splits it into three independently-targeted layers.
+
+The first guardrail is Organization Policy. An Organization Policy is a constraint applied to an Organization, folder, or project that restricts which configurations are even allowed to exist. Two flavours of constraint.
+
+Boolean constraints are on or off. For example, iam dot disable-service-account-key-creation set to true blocks creation of service account J-S-O-N keys anywhere under that node.
+
+List constraints are allow-lists or deny-lists of values. compute dot allowed-trusted-image-projects constrains which projects' V-M images can be used for boot disks. gcp dot resource-locations constrains which regions resources can be created in.
+
+Constraints cascade down the hierarchy and stack with ancestors. Setting gcp dot resource-locations to in colon e-u dash locations at a eu-prod folder forces every project under it to deploy only to E-U regions, regardless of what individual project owners try.
+
+Common constraints to apply early in a new organization. Disable service account key creation. Disable the legacy auto-grant of editor to default service accounts. Force S-S-H via eye-ay-em-managed O-S Login. Restrict which V-Ms can have public eye-pees. Force uniform bucket-level access on new buckets so the legacy A-C-L surface is off by default.
+
+Organization Policy is about what can exist. Eye-ay-em is about who can act on what exists. They are orthogonal.
+
+The second guardrail is Hierarchical Firewall Policies. V-P-C firewall rules live inside a V-P-C and apply to that V-P-C's instances. But you often want rules that apply across every V-P-C in every project in a folder or organization. Things like never allow inbound S-S-H from the internet, anywhere. That's what Hierarchical Firewall Policies are for. They attach to an Organization or folder node and evaluate before V-P-C firewall rules. A deny at the Org level applies to every V-P-C in every project below it.
+
+Two rule actions worth knowing. Go-to-next explicitly falls through to the next policy in the chain — the folder's policy, then the project's V-P-C rules. Deny and allow are terminal at this policy.
+
+Use hierarchical firewall for non-negotiable network rules. No public S-S-H. No egress to known-bad C-I-D-Rs. Allow only corporate V-P-N ranges on management ports.
+
+The third guardrail is eye-ay-em Deny policies — the explicit deny layer.
+
+GCP eye-ay-em is fundamentally allow-only. A principal can do something if and only if some binding grants the permission. There's no deny inside a regular binding. That default is the right behaviour ninety-five percent of the time, but breaks down for a few enterprise cases.
+
+Nobody, including owners, can delete the audit log sink. Service accounts in acme-finance-prod may never grant themselves additional bindings. The break-glass role can only be used between two and four a-m U-T-C.
+
+For these, GCP added Deny policies — a separate policy attached to an Organization, folder, or project that lists tuples of denied principals, denied permissions, and optional CEL conditions. A deny policy match overrides any allow, including project owner. Evaluation order is: deny is checked first. If any deny matches, the request fails immediately.
+
+The contrast with AWS is the key callout. AWS eye-ay-em is deny-wins by default. Every policy statement is allow or deny, and any deny anywhere in the union of policies kills the request. GCP doesn't put deny inside ordinary bindings — explicit deny is a separate, deliberately rarer mechanism. The practical effect: GCP eye-ay-em debugging is easier — you only ever need to find the allow — at the cost of needing a separate construct for the rare no, really, never rules.
+
+Three layers, stacked. Organization Policy says what can exist. Deny policy says what is forbidden regardless of allows. Eye-ay-em bindings say what's allowed. A request passes only if Organization Policy permits the config, no Deny policy denies the action, and at least one eye-ay-em binding — with conditions satisfied — allows it. That's the GCP authorization stack in one paragraph.
+
+The primitives in this notebook show up everywhere. Service accounts are attached to every Cloud Run service in notebook four, every Compute Engine V-M in notebook three, every GKE workload in notebook four. Workload Identity Federation is how GitHub Actions deploys anything in notebook thirteen. The resource-locations constraint is how you enforce the region choice from notebook one. Deny policies and Security Command Center join the security toolbelt in notebook eleven.
+
+The single thing to internalise from this chapter: GCP's authorization model is the hierarchy, plus allow-only eye-ay-em, plus an explicit-deny escape hatch, plus Organization Policy, plus Hierarchical Firewall. Five layers, each with a different job. Once they click as separate-but-stacked, the rest of GCP's governance surface becomes obvious.

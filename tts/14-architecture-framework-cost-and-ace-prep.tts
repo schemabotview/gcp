@@ -1,0 +1,145 @@
+The Architecture Framework, with services attached.
+
+The GCP Architecture Framework is six pillars. Operational Excellence. Security, Privacy, and Compliance. Reliability. Cost Optimization. Performance Optimization. Sustainability. Notebook one introduced them as a vocabulary; this section maps each one to the concrete GCP services we've been building with.
+
+Operational Excellence. Cloud Build plus Cloud Deploy for repeatable releases. Cloud Logging plus Monitoring plus Trace plus Profiler plus Error Reporting for the observability stack. Terraform for infrastructure-as-code. Workload Identity Federation for keyless continuous-integration. And S-L-Os and burn-rate alerts to align operations on user-visible reliability.
+
+Security, Privacy, and Compliance. The eye-ay-em cascade — hierarchy plus bindings plus conditions — from notebook two. Organization Policy plus Hierarchical Firewall plus Deny policies, also notebook two. V-P-C Service Controls — notebook six by reference, covered as the GCP-unique exfil boundary. Cloud K-M-S plus Secret Manager plus Cloud H-S-M, from notebook eleven. Workload Identity for GKE plus Workload Identity Federation for external workloads, from notebooks two and eleven. Binary Authorization for image provenance, from notebook eleven. Security Command Center as the umbrella, also notebook eleven. Cloud Armor plus I-A-P at the edge, notebooks seven and eleven. And Cloud Audit Logs sinked to BigQuery, from notebook twelve.
+
+Reliability. Regional Managed Instance Groups, regional GKE clusters, regional Cloud SQL high availability, from notebooks three, four, and eight. Multi-region Cloud Storage and BigQuery for data resilience, from notebooks five and nine. Spanner for globally-consistent writes, from notebook nine. Disaster recovery strategy — Backup-Restore, Pilot Light, Warm Standby, Active-Active, from notebook thirteen. And Backup and D-R Service for managed backups, also notebook thirteen.
+
+Cost Optimization. Sustained Use Discounts, automatic. Committed Use Discounts, spend-based or resource-based. Spot V-Ms, from notebook three. BigQuery partitioning plus clustering plus Editions versus on-demand, from notebook nine. GCS lifecycle rules — Standard then Nearline then Archive then Delete, from notebook five. Cloud Run scale-to-zero for low-traffic workloads, from notebook four. And right-sizing via Active Assist Recommender, covered in this notebook's next section.
+
+Performance Optimization. Global External Application Load Balancer plus Cloud C-D-N plus Cloud Armor for low-latency public traffic, from notebook seven. Memorystore as cache layer in front of Cloud SQL, from notebook eight. B-I Engine for sub-second BigQuery dashboards, from notebook nine. And Direct V-P-C Egress on Cloud Run for faster internal calls, from notebook four.
+
+Sustainability. Carbon-free energy percentages per region, from notebook one — pick europe-north-one or us-central-one for sustainability-sensitive workloads. Right-sizing reduces idle hardware, reducing emissions. And managed services like Cloud Run and Cloud Functions amortise hardware across many tenants.
+
+The framework isn't a checklist. It's a vocabulary for trade-offs. A workload that's perfectly cost-optimized may be under-secured; a workload that's perfectly reliable may be over-budget. The pillars are useful as the lens for asking "what did I trade off here."
+
+Billing and cost levers.
+
+Cost optimization deserves its own section because the levers are concrete and the savings are often large. Three structural concepts first, then the GCP-specific cost levers.
+
+Billing structure. A billing account is the entity invoiced. Linked to one or more projects. Can have multiple billing accounts per Organization for separate cost centres.
+
+The billing hierarchy means projects inherit charges to their billing account. Move a project between billing accounts to re-attribute spend.
+
+Budgets are per billing account or per project. Define threshold rules — fifty percent, ninety percent, one hundred percent. On hit, send Pub-Sub messages or email. Budget alerts, not budget enforcement. GCP won't shut down resources to stay under budget.
+
+BigQuery billing export exports detailed line items to BigQuery for SQL analysis. The single highest-leverage cost-tooling decision. Turn this on the day you create the billing account.
+
+Cost Insights and Recommender — Active Assist's cost surface. Surfaces "this V-M is idle, kill it" and "this commitment would save X dollars."
+
+The big cost levers, in order of impact.
+
+First. Sustained Use Discounts — already on. Verify by reading the S-U-D line on invoices.
+
+Second. Committed Use Discounts — for any steady-state baseline like Compute Engine, Cloud SQL, GKE. Start with spend-based C-U-Ds at one-year for safety. Move to three-year resource-based once usage stabilises.
+
+Third. Spot V-Ms for fault-tolerant work — batch, build agents, render farms. Sixty to ninety-one percent off.
+
+Fourth. BigQuery partitioning — cuts on-demand query cost dramatically. The most common single optimisation for established BigQuery tables.
+
+Fifth. GCS lifecycle rules — Standard then Nearline then Archive then Delete. Saves more than any other storage optimisation.
+
+Sixth. Right-size V-Ms — Recommender surfaces over-provisioned instances. Apply its suggestions monthly.
+
+Seventh. Idle resource cleanup — orphaned Persistent Disks, unused I-Ps, forgotten BigQuery datasets. Cloud Asset Inventory plus scheduled cleanup scripts catch these.
+
+Eighth. Cloud Run min-instances audit — min equals one or more on a low-traffic service is effectively a small Compute Engine V-M, billed by the millisecond. Check whether you actually need it.
+
+The FinOps habit: monthly cost-review meeting against the billing export. Bring the top five line items and ask what changed.
+
+Associate Cloud Engineer exam prep.
+
+The Associate Cloud Engineer blueprint covers most of what's in this course. Three things to do in the last one to two weeks before taking the exam. Cover the blueprint. Internalise the keyword-to-service playbook. And recognise the distractor traps.
+
+A-C-E blueprint coverage. The blueprint as of twenty twenty-six breaks roughly into five domains. Setting up a cloud solution environment — about seventeen point five percent. Mapped to notebooks one, two, and fourteen on billing. Planning and configuring a cloud solution — about seventeen point five percent. Mapped to notebooks three through six. Deploying and implementing a cloud solution — about twenty-five percent. Mapped to notebooks three through seven and thirteen. Ensuring successful operation — about twenty percent. Mapped to notebooks twelve and thirteen. Configuring access and security — about twenty percent. Mapped to notebooks two and eleven.
+
+Nothing on the blueprint is missing from this course. If you've worked through the notebooks honestly, the gap to A-C-E-ready is mostly hands-on practice in the console — labs, g-cloud muscle memory, and reading the Google docs for the specific products you don't yet have personal experience with.
+
+Keyword to service playbook. When you see one of these phrases in an exam question, the answer is usually the service you'll hear next.
+
+"Globally distributed SQL" or "strong consistency at scale" — Spanner.
+
+"Stream with replay" or "event-driven fan-out" — Pub-Sub.
+
+"Data warehouse" or "SQL over terabytes" — BigQuery.
+
+"WAF at the edge" or "global D-DoS protection" — Cloud Armor.
+
+"Federated identity for continuous-integration" or "keyless GitHub Actions" — Workload Identity Federation.
+
+"Zero-trust web access" or "no V-P-N, no bastion" — Identity-Aware Proxy.
+
+"Container image policy at deploy" — Binary Authorization.
+
+"Encryption key under customer control" — Cloud K-M-S with C-M-E-K.
+
+"Application secret storage" — Secret Manager.
+
+"Single V-P-C across regions" — it's already that. GCP V-P-C is global.
+
+"Hybrid connectivity, low bandwidth" — high-availability V-P-N.
+
+"Hybrid connectivity, high bandwidth" — Dedicated Interconnect or Partner Interconnect.
+
+"Connect to SaaS or managed service privately" — Private Service Connect.
+
+"Synchronous storage replication" — dual-region Cloud Storage or Regional Persistent Disk.
+
+"Cron on GCP" — Cloud Scheduler.
+
+"Multi-step orchestration with A-P-I calls" — Workflows.
+
+"Rate-controlled H-T-T-P fan-out" — Cloud Tasks.
+
+"Real-time mobile app database" — Firestore.
+
+"Petabyte time-series" — Bigtable.
+
+"Lift-and-shift database" — Database Migration Service.
+
+"Multi-cloud analytics without copying data" — BigQuery Omni.
+
+Distractor traps. Question writers love services that look like the answer but aren't. Watch for these.
+
+Spanner versus Cloud SQL versus AlloyDB versus BigQuery. Spanner is for global transactional writes — not analytics. BigQuery is for analytics — not O-L-T-P. AlloyDB is Postgres-shaped O-L-T-P at scale. Cloud SQL is the default.
+
+Pub-Sub versus Eventarc versus Workflows versus Cloud Tasks. Pub-Sub for fan-out. Eventarc for Google-source events. Workflows for multi-step orchestration. Cloud Tasks for rate-controlled H-T-T-P.
+
+Cloud Run versus Cloud Functions versus GKE Autopilot. Cloud Functions for one event-handler. Cloud Run for H-T-T-P services. GKE Autopilot when you genuinely need Kubernetes shape.
+
+Cloud Armor edge security policy versus security policy. Edge runs before Cloud C-D-N. Security policy runs at the backend. Don't confuse them.
+
+V-P-C Peering versus Shared V-P-C versus Private Service Connect. Peering means two V-P-Cs see each other. Shared V-P-C means one V-P-C, multiple projects. P-S-C means one consumer reaches one producer privately.
+
+Organization Policy versus eye-ay-em versus Deny policy. Organization Policy is what can exist. Eye-ay-em is who can act. Deny policy is the explicit override.
+
+Workload Identity versus Workload Identity Federation. Workload Identity is GKE Kubernetes service account to Google service account. Workload Identity Federation is external — like GitHub — to Google service account. Both impersonate. The source is different.
+
+GCS class versus location. Independent axes. "Nearline in us-central-one" and "Nearline in us" are different things.
+
+Standard versus Premium network tier. Premium uses Google backbone end-to-end. Standard rides public internet to the destination region.
+
+Cloud SQL high-availability failover versus cross-region read replica promotion. High-availability failover is automatic, in-region, seconds. Cross-region promotion is manual, for disaster recovery.
+
+Study plan — the last two weeks.
+
+Week one — re-read this course's notebooks two, six, seven, and eleven. These are the eye-ay-em, networking, traffic, and security chapters. The Associate Cloud Engineer exam leans heavily on them.
+
+Hands-on Qwiklabs or Skill Boost. Pick paths that touch services you haven't personally used. The exam expects console familiarity.
+
+Week two — practice tests from a reputable source. Google's official practice, ExamTopics, Tutorials Dojo. Don't memorise the questions; review the explanations for any you got wrong.
+
+Day-before review — the keyword playbook above, and the distractor-traps list. The actual mechanics of how Spanner works don't matter on exam day. Whether you can pick it over BigQuery does.
+
+Take the exam in a quiet, alert state. The Associate Cloud Engineer is not the hardest GCP exam, but it has a long tail of questions where the right answer requires both technical knowledge and careful reading.
+
+Where the course ends.
+
+Fourteen notebooks. Roughly six hours of audio. The same chapter spine as the AWS and Azure courses, with the GCP-unique pieces called out everywhere. Global V-P-C, hierarchical eye-ay-em cascade, two-step Workload Identity Federation token dance, V-P-C Service Controls, multi-region storage as a first-class location type, sustained-use discounts, Spanner.
+
+If the course did its job, you have a working mental model of GCP. Not memorised facts, but a sense of what shape each service is and what trade-offs it represents. The blueprint coverage falls out of that mental model. So does most real-world architecture work.
+
+Good luck on the exam, and good luck on whatever you build.

@@ -1,0 +1,83 @@
+Cloud Build and Cloud Deploy.
+
+GCP's continuous-integration and continuous-deployment story is two services. Cloud Build for build and test pipelines. Cloud Deploy for delivery pipelines. Most teams use both, with Cloud Build feeding artifacts into Cloud Deploy. Plenty of teams also use GitHub Actions or GitLab C-I for the build stage and only Cloud Deploy for the delivery stage. That's a fine pattern too.
+
+The headline GCP-specific bit is Workload Identity Federation, from notebook two, which lets GitHub Actions deploy to GCP without ever holding a service account J-S-O-N key. That single feature changes how the C-I-C-D plumbing looks.
+
+Cloud Build recap. Covered briefly in notebook four. Recap here in continuous-delivery context. A cloud-build dot y-a-m-l file is a list of container steps run in sequence, or in parallel with wait-for. Triggers kick off builds on GitHub or GitLab push, Cloud Source Repos commit, Pub-Sub message, or manual A-P-I call. Substitutions are variables like project-I-D, short-S-H-A, plus user-defined underscore-V-A-R-S. Private pools run builds inside your V-P-C, required if the build needs to reach private resources like the Cloud SQL Auth Proxy or internal package registries. And artifacts are pushed to Artifact Registry — containers, language packages.
+
+Vulnerability scanning is automatic when images land in Artifact Registry. Findings hook into Binary Authorization from notebook eleven to gate deploys.
+
+Build provenance generates an in-toto attestation — S-L-S-A-compatible — signed by Cloud Build. That attestation is the input to Binary Authorization attestors. "This image was actually built by our Cloud Build pipeline."
+
+Cloud Deploy is the delivery-pipeline product. You define a delivery pipeline as a Y-A-M-L file. Ordered targets — dev to staging to prod — promotion rules, approval gates, canary configuration. A release moves through the pipeline from target to target.
+
+Supports Cloud Run services and jobs. GKE — Kubernetes manifests, Helm, kustomize. And Cloud Run for Anthos or GKE Autopilot.
+
+Canary patterns are first-class. Linear — push to N percent of traffic, wait, push to M percent, etc. Standard — a single fixed canary step, like ten percent canary then full. And Custom — define your own phases.
+
+Verification phases can run a Cloud Build job between canary phases. Synthetic tests, smoke checks, S-L-O probes. Promotion is blocked until verification passes. Manual approval gates are the more cautious option.
+
+Why Cloud Deploy versus raw g-cloud in Cloud Build. Cloud Deploy keeps state across promotions, knows how to roll back, integrates with verification, and gives you an audit-friendly pipeline U-I. For one-off deploys, g-cloud is fine. For production pipelines with multiple environments, Cloud Deploy earns its keep.
+
+Workload Identity Federation for GitHub Actions. The canonical pattern: GitHub Actions deploys to GCP without holding a service account J-S-O-N key.
+
+Setup is one-time. Create a Workload Identity Pool — for example acme-cicd-pool. Create a Provider in the pool that trusts GitHub's O-I-D-C issuer. Use an attribute-condition that matches your repo and ideally environment — attribute dot repository equals acme slash web and attribute dot environment equals prod. Create a Google service account, like deployer-prod at the project's iam dot g-service-account dot com domain. Grant it the runtime roles it needs — Cloud Run developer, Artifact Registry writer. Then grant workload-identity-user on deployer-prod to the W-I-F principal — principal-set at the workforce pool with the attribute repository constraint.
+
+In the GitHub workflow, use the google-github-actions slash auth at v-two action with the workload-identity-provider and service-account inputs, then run g-cloud run deploy.
+
+Underneath: GitHub O-I-D-C token, then S-T-S exchange, then generate-access-token, then service account access token, then g-cloud calls. Zero secrets in GitHub. Notebook two covered the dance in detail.
+
+Infrastructure as code.
+
+ClickOps doesn't scale. You need infrastructure-as-code to track changes, review them, and roll them back. GCP works with three patterns. Terraform — the de-facto standard. Config Connector — Kubernetes-native. And the deprecating Deployment Manager.
+
+Terraform with the google provider is the default infrastructure-as-code tool on GCP. Patterns worth knowing. State storage in GCS with state locking — use a terraform-state project per environment. Service account impersonation via the impersonate-service-account provider field — Terraform runs as a deployer service account without a long-lived key. With Workload Identity Federation this composes into key-less continuous-integration Terraform. Workspaces for environment isolation — dev, staging, prod. Or per-env directories. Both work. And modules for reusable patterns — a GKE-cluster module, a Cloud-Run-service module.
+
+Config Connector, K-C-C for short, is the Kubernetes operator that exposes GCP resources as Kubernetes custom resources. You write a Compute-Instance Y-A-M-L, apply it with kubectl, and Config Connector creates the actual V-M. Used by teams who want one tool — Kubernetes — for both workloads and infrastructure.
+
+Deployment Manager is GCP's original infrastructure-as-code product. Don't pick it for new work — Terraform has more ecosystem, and Google's own docs increasingly default to Terraform examples.
+
+High availability and disaster recovery.
+
+Availability and disaster recovery aren't products. They're patterns you build by configuring the products from earlier notebooks. This section ties together the resilience story across compute, data, and network.
+
+H-A patterns by component. For Compute Engine Managed Instance Group: zonal is one zone, regional is three zones in region, multi-region is multiple regions plus a load balancer across them. For GKE: zonal cluster, regional cluster with the control plane across three zones, multiple clusters with multi-cluster ingress for multi-region. For Cloud Run: always regional by default, multi-region is multiple regions plus a load balancer. For Cloud SQL: single zone, high availability with primary plus standby in two zones, cross-region read replicas with manual promotion for multi-region. For AlloyDB: multi-zone in region by default, cross-region replicas. For Spanner: three zones for regional, three or more regions synchronous for multi-region. For Cloud Storage: regional bucket, dual-region or multi-region bucket. And for BigQuery: single region, or multi-region.
+
+Most production workloads stop at regional. Multi-region is for very high availability requirements — financial services, life safety — or genuinely global services. The cost and complexity step up significantly.
+
+Disaster recovery strategies — R-T-O versus R-P-O. The Recovery Time Objective is how long you can be down. The Recovery Point Objective is how much data you can afford to lose. Four standard strategies trade R-T-O and R-P-O against cost.
+
+Backup and Restore — R-T-O of hours to days, R-P-O of hours since the last backup, lowest cost.
+
+Pilot Light — R-T-O of tens of minutes, R-P-O of minutes from a replicated database, low cost.
+
+Warm Standby — R-T-O of minutes, R-P-O of seconds, medium cost.
+
+Multi-site Active-Active — R-T-O of zero with automatic failover, R-P-O of zero, high cost.
+
+Map these to GCP services. Backup and Restore — GCS Archive class for cold backups, Cloud SQL automated backups with point-in-time recovery, Backup and Disaster Recovery Service for V-Ms. Pilot Light — V-P-C plus minimal infra pre-provisioned in the disaster recovery region, Cloud SQL cross-region read replica, Cloud Run with min equals zero in the disaster recovery region waiting to scale up. Warm Standby — same as Pilot Light but with non-trivial capacity already running and synced. And Active-Active — Spanner multi-region, multi-region Cloud Storage, Cloud Run in multiple regions behind a Global External Application Load Balancer.
+
+Test the disaster recovery plan. A plan you've never executed is not a plan. GameDay-style failovers monthly are the standard.
+
+Backup and D-R Service, formerly Actifio, is the managed backup service for V-Ms, databases, and file systems. Supports Compute Engine V-Ms with application-consistent snapshots. Cloud SQL beyond the built-in automated backups. VMware Engine for VMware-on-GCP workloads. And file systems and databases running on V-Ms — Oracle, S-A-P, Microsoft SQL Server. Used where the built-in per-service backup features aren't enough. Typically enterprises with regulated backup retention policies.
+
+Migration.
+
+Four migration patterns worth naming. Most enterprises pick more than one in parallel — different workloads call for different approaches.
+
+Database Migration Service, D-M-S for short, handles homogeneous and heterogeneous migrations between MySQL, PostgreSQL, and SQL Server — on-prem or other clouds — and Cloud SQL or AlloyDB. Continuous replication during cutover, change-data-capture-based.
+
+Migrate to Virtual Machines lift-and-shifts VMware or Hyper-V V-Ms onto Compute Engine. Block-level replication. Cutover with minimal downtime.
+
+Migrate to Containers converts running V-Ms into containers that run on GKE. Used to escape V-Ms without rewriting apps. Niche but powerful.
+
+Transfer Service or Transfer Appliance handle GCS data migration, covered in notebook five.
+
+BigQuery Data Transfer Service handles recurring data transfers from SaaS sources — Google Ads, Salesforce, Teradata, Redshift — into BigQuery.
+
+The seven R-s of migration apply on GCP just like elsewhere. Rehost — lift-and-shift. Replatform — Cloud SQL instead of self-managed Postgres. Refactor — move to Cloud Run. Repurchase — replace with SaaS. Retire. Retain — leave it. Relocate. Most workloads land in Replatform or Refactor on GCP.
+
+What carries into later chapters. Notebook fourteen wraps the course with the Architecture Framework, cost optimization, and Associate Cloud Engineer exam-prep notes. The patterns from this chapter — Workload Identity Federation for keyless continuous-integration, infrastructure-as-code, regional-first high availability, disaster recovery strategy mapped to R-T-O and R-P-O — show up directly in the framework's Reliability and Operational Excellence pillars.
+
+Three habits to carry forward. Keyless continuous-integration via Workload Identity Federation — don't even create service account J-S-O-N keys for C-I runners. Regional everything in production — promotions to multi-region are intentional, not default. And disaster recovery is a tested plan, not a configuration. Run the failover before you need to run it for real.

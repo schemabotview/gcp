@@ -1,0 +1,101 @@
+The V-P-C is global. The subnet is regional.
+
+That's the single most important sentence in GCP networking. If you come from AWS, where a V-P-C is a regional thing and a subnet is a zonal thing, GCP rearranges both. V-P-Cs are global — one V-P-C spans every region on the planet. And subnets are regional — each subnet has an I-P range that spans every zone in its region.
+
+This isn't cosmetic. It's why GCP needs only one V-P-C to hold a multi-region workload. Why you don't manage a subnet per availability zone for high availability. And why V-P-C firewall rules apply across regions by default. Once this is internalised, the rest of the chapter follows.
+
+V-P-C shape. A V-P-C is a project-scoped, global network resource. Inside one V-P-C you have three things.
+
+Subnets — regional. Each subnet has a primary I-P-v-four C-I-D-R for V-M primary I-Ps, and zero or more secondary C-I-D-Rs for alias I-P ranges, used by GKE pods and services.
+
+Routes — entries in the V-P-C routing table. Default routes — zero zero zero zero slash zero pointing to the internet, plus subnet routes for each subnet — are auto-created. You add custom routes for V-P-Ns, network virtual appliances, or Cloud Router-learned routes.
+
+Firewall rules — V-P-C-scoped, stateful. Apply to every instance in the V-P-C unless filtered by source or target.
+
+Two V-P-C types. Auto mode auto-creates one slash twenty subnet per region with a default C-I-D-R layout. Convenient for sandboxes, but the C-I-D-Rs aren't yours, so it's not suitable for any real enterprise network. Custom mode, where you create subnets explicitly, choose C-I-D-Rs, and pick regions — the right default for any non-trivial setup.
+
+Cross-cloud comparison. An AWS V-P-C is regional; you need one per region, and you peer or use Transit Gateway to connect them. GCP saves you that work — one V-P-C, subnets in every region you want. Azure V-Nets are regional like AWS. The GCP global model is the unusual one.
+
+I-P planning. When you create a subnet, you pick a primary C-I-D-R — say ten dot zero dot one dot zero slash twenty-four in us-central-one — which is the pool V-M primary I-Ps come from.
+
+Secondary C-I-D-Rs are extra I-P ranges attached to the same subnet, used for alias I-P ranges. A V-M in this subnet can be given a slice of a secondary range, and individual processes — or containers, or pods — bind to those alias I-Ps. GKE leans on this hard. Pods get I-Ps from one secondary range, services from another, and both are routable directly inside the V-P-C. This is why GKE clusters in V-P-C-native mode can scale to many thousands of pods without exhausting the primary subnet.
+
+Plan ranges with peering and hybrid in mind. Two V-P-Cs you ever want to connect — peering, Cloud V-P-N, Interconnect — must have non-overlapping C-I-D-Rs. The cost of overlap discovered late is renumbering an entire network. Months of work. Reserve large parent allocations early, before any project owner picks freely. Ten dot zero dot zero dot zero slash eight to GCP, ten dot one-hundred dot zero dot zero slash sixteen to AWS, ten dot two-hundred dot zero dot zero slash sixteen to on-prem, for example.
+
+Private Google Access is a per-subnet toggle. When it's on, V-Ms without external I-Ps can reach Google A-P-Is — storage dot googleapis dot com, pub-sub dot googleapis dot com, and so on — over Google's internal network. No internet gateway, no NAT, no exposure. Always on for private subnets.
+
+Firewall rules and routes.
+
+A V-P-C has one routing table and one firewall ruleset, both global to that V-P-C. Two characteristics of GCP firewall rules are worth knowing before you start writing them. They're stateful. And they target by tag or service account, not by subnet.
+
+V-P-C firewall rules. Every V-P-C has an implicit firewall. Default-deny ingress from anywhere. Default-allow egress to anywhere. You override with rules.
+
+Each rule has a direction — ingress or egress. An action — allow or deny. A priority from zero, highest, to sixty-five thousand five-thirty-five, lowest. Lower number wins. A source or destination — I-P ranges, source tags, or source service accounts for ingress, destination C-I-D-Rs for egress. Targets — which instances the rule applies to. Either target tags, target service accounts, or all instances in the V-P-C. And protocol and ports — t-c-p eighty, t-c-p four-four-three, t-c-p one-zero-two-four dash six-five-five-three-five, and so on.
+
+Stateful. A reply on an established connection is automatically allowed, regardless of egress rules. You don't write "allow egress one-zero-two-four to six-five-five-three-five for return traffic" the way you would on AWS network A-C-Ls. Same model as AWS security groups and Azure network security groups.
+
+Targeting by tag. Attach tags equals web to a V-M template and write target-tags equals web on a firewall rule — the rule applies only to V-Ms with that tag. This is GCP's analogue of AWS security group membership, but applied by string tag rather than security group attachment. It scales — one V-P-C, one rule, applies across regions to every instance with the tag.
+
+Targeting by service account. Attach a service account to a V-M and write target-service-accounts equals app-S-A at whatever-project on a rule. The rule applies only to V-Ms running as that service account. The benefit over tags: tags are an honour system — anyone with V-M-create permission can set them. Service accounts are gated by eye-ay-em, specifically the service-account-user role on the service account. Use service accounts for security-critical rules.
+
+Hierarchical Firewall Policies, which we met in notebook two, sit above V-P-C firewall rules. They evaluate first, at the Org or folder level, and can deny across every V-P-C in the descendant projects. Use them for non-negotiable network rules; use V-P-C rules for per-app shaping.
+
+Routes and Cloud NAT. Default routes in every V-P-C: zero zero zero zero slash zero to the default internet gateway, which only matters for V-Ms with external I-Ps, plus a route for each subnet.
+
+Custom routes point at next hops — another V-M acting as a network virtual appliance, a V-P-N tunnel, or a Cloud Router. They can be priority-ordered the same way firewall rules are.
+
+Cloud NAT lets private-I-P-only V-Ms reach the public internet without giving them an external I-P. It's a regional, managed NAT. No NAT gateway resource to provision, unlike AWS NAT Gateway. No instance-based NAT to babysit. You attach it to a Cloud Router, and it provides outbound NAT for any V-M in the specified subnets.
+
+The pattern. Private subnets host your workload V-Ms. Cloud NAT gives them outbound internet for package downloads and third-party A-P-I calls. Private Google Access gives them inbound-to-Google-A-P-Is without internet. Together that's the standard private-subnet recipe.
+
+Connecting two networks inside GCP.
+
+Once you have more than one V-P-C, the question is how they talk. GCP offers three answers, with deliberately different trade-offs. V-P-C Peering — cheap, easy, non-transitive. Shared V-P-C — one V-P-C, many projects. And Private Service Connect — one consumer-facing endpoint, many producers behind it.
+
+V-P-C Peering connects two V-P-Cs at the routing level. Each side adds the other's subnets to its route table. Instances on either side can talk to each other by R-F-C eighteen-eighteen I-P, as if on the same network.
+
+Three limits worth knowing. Non-transitive — if A peers with B and B peers with C, A cannot reach C through B. There is no chained transit. Use a hub-and-spoke topology with Cloud V-P-N or Interconnect as the hub if you need transit. C-I-D-R ranges must not overlap — peering is where overlap bites first. And firewall rules don't cross peerings. Each side's V-P-C firewall rules apply independently. Inbound traffic from a peered V-P-C is evaluated against your V-P-C's ingress rules as if it came from any other source.
+
+Peering is good for connecting a Shared V-P-C host to peer-specific consumer V-P-Cs, and for connecting environment V-P-Cs where transit isn't needed — dev to shared services, for example.
+
+Shared V-P-C is the GCP-unique multi-project pattern. Shared V-P-C lets multiple projects use a single V-P-C owned by a designated host project. One host project owns the V-P-C, subnets, firewall rules, routes, V-P-Ns, and Interconnects. N service projects attach to the host project. Their workloads — V-Ms, GKE clusters, Cloud SQL with P-S-C, and so on — live in the host's subnets but bill to the service project.
+
+Why this is the recommended enterprise pattern. The central network team owns network configuration in the host project. App teams own only their compute, in their own service projects. Per-subnet eye-ay-em — the network-user role on a specific subnet only — lets you give a team rights to deploy into a subnet without giving them rights to change the V-P-C. And all workloads share I-P space, so cross-team service-to-service traffic stays inside the V-P-C with no peering.
+
+Cross-cloud comparison. AWS handles this with Resource Access Manager — sharing a subnet — and Shared V-P-C is the more cohesive equivalent. Azure has V-Net peering as the primary pattern; the cross-subscription shared story is weaker.
+
+Notebook four's GKE clusters and Cloud Run services typically run in Shared V-P-C service projects in production environments.
+
+Private Service Connect, P-S-C for short, is the modern way to expose a service in one V-P-C — the producer — to consumers in other V-P-Cs or on-prem, without peering and without I-P overlap considerations.
+
+The shape. The producer publishes a service behind an internal load balancer with a Service Attachment. The consumer creates a P-S-C endpoint in their own V-P-C — a forwarding rule with an I-P from their address space. Traffic from the consumer to that endpoint I-P is routed via Google's backbone to the producer's load balancer.
+
+Three common shapes. P-S-C for Google services — reach storage dot googleapis dot com, bigquery dot googleapis dot com, and so on via a private I-P in your V-P-C. The successor to the older Private Service Access for Google A-P-Is. P-S-C for managed services — Cloud SQL, AlloyDB, and Memorystore now publish P-S-C endpoints. The producer's network is invisible to you. And P-S-C for third-party or SaaS — Datadog, Snowflake, MongoDB Atlas, Confluent all publish P-S-C endpoints. The consumer reaches them via internal I-P, no public internet.
+
+Why this matters. Before P-S-C, connecting to a SaaS or managed service often meant V-P-C peering — with all its C-I-D-R and transit constraints — or going over the internet. P-S-C is the equivalent of AWS PrivateLink or Azure Private Endpoint, and arguably more flexible because the consumer endpoint's I-P is fully under the consumer's control.
+
+Reaching outside GCP.
+
+Three mechanisms get traffic between your GCP V-P-C and on-prem, or another cloud. Pick based on bandwidth and durability requirements. Cloud V-P-N is fast to stand up. Dedicated Interconnect gives you a private fiber drop. Partner Interconnect is the middle ground.
+
+Cloud V-P-N is I-P-sec V-P-N over the public internet. Two flavours. High-availability V-P-N — H-A V-P-N — uses two tunnels on two interfaces with two public I-Ps, with B-G-P via Cloud Router. Ninety-nine point nine-nine percent availability service level agreement. The default for new deployments. Classic V-P-N is single-interface, single-tunnel, with static or B-G-P routing, and a ninety-nine point nine percent service level agreement. Avoid for new work — the service level difference is meaningful at scale.
+
+Throughput per tunnel is about three gigabits per second. Practical bandwidth needs above that argue for Interconnect.
+
+Cloud Router is the B-G-P speaker on GCP's side. Every H-A V-P-N and every Interconnect attachment is paired with a Cloud Router that exchanges routes with your on-prem peer via B-G-P. The route exchange means your on-prem C-I-D-Rs appear in the V-P-C's routing table dynamically — no manual route additions when on-prem networks change.
+
+Dedicated Interconnect is a physical fiber circuit from a Google point of presence directly into your network gear. Ten gigabits per second or one hundred gigabits per second per circuit. Up to eight circuits per attachment using link aggregation. You build out — Google provides the cross-connect, you arrange your own fiber and B-G-P. Best price-per-gigabit at scale, longest setup time. Weeks to months for cross-connect provisioning.
+
+Partner Interconnect uses a service provider — Equinix, Megaport, Telefonica, about forty others — as the intermediary. Speeds from fifty megabits per second to fifty gigabits per second in defined tiers. Faster to stand up, since you only need a relationship with the partner. Slightly higher per-gigabit cost than Dedicated.
+
+Cross-Cloud Interconnect is the newest variant. A Google-managed circuit to AWS, Azure, or Oracle Cloud, used for cloud-to-cloud private connectivity without going over the internet. Useful for multi-cloud architectures that need predictable bandwidth.
+
+A note on Private Service Access, the legacy thing. Before P-S-C, GCP managed services like Cloud SQL used Private Service Access — a peered V-P-C owned by Google holding the service, attached to your V-P-C via an automated peering connection over a C-I-D-R range you allocated. It still works and is still used for Cloud SQL, Memorystore, and others by default.
+
+For new designs, prefer P-S-C where available. The C-I-D-R allocation step in Private Service Access is a recurring source of pain — you reserve a slash sixteen you can never use elsewhere. P-S-C sidesteps that with one I-P per endpoint.
+
+What carries into later chapters. Networking is the substrate every other notebook sits on. Cloud Run wires into V-P-C via Direct V-P-C Egress, recapped from notebook four. GKE relies on V-P-C-native networking and alias I-Ps. Cloud SQL uses Private Service Access or P-S-C for private connectivity, notebook eight. BigQuery and GCS are reachable via Private Google Access from V-Ms without public I-Ps.
+
+Three habits to carry forward. Plan C-I-D-Rs centrally and early — overlap is the most expensive networking mistake to discover late. Shared V-P-C is the right enterprise default — per-project V-P-Cs scattered across the org accumulate connectivity debt fast. And Private Service Connect over V-P-C Peering for managed services and SaaS — P-S-C scales, peering does not.
+
+Notebook seven is traffic flow — load balancers, Cloud Armor, Cloud DNS, Cloud C-D-N — and how internet traffic finds your backends through the Google Front End.

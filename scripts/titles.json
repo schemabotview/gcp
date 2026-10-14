@@ -6,5 +6,6 @@
   "networking": "Google Cloud Networking Explained: VPC, Firewalls, DNS, Load Balancers, VPN",
   "compute": "Compute Engine vs GKE vs Cloud Run: Choosing Compute On Google Cloud",
   "storage": "Google Cloud Storage Explained: Buckets, Signed URLs, Lifecycle, Backups",
-  "databases": "Choosing A Google Cloud Database: Cloud SQL, Firestore, Spanner, Bigtable"
+  "databases": "Choosing A Google Cloud Database: Cloud SQL, Firestore, Spanner, Bigtable",
+  "events": "Pub/Sub, Eventarc, Cloud Tasks And Workflows: Event-Driven Google Cloud"
 }

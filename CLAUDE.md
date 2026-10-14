@@ -107,6 +107,15 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `databases-spanner` | what Spanner offers → instance configs → does stock need it table |
 |  | `databases-bigtable` | hot vs spread row keys → 2×2 behaviour |
 |  | `databases-cache` | 2×2 stale-cache timeline → numbered 2×2 migration (padding 0.17) |
+| `events` | `events-gateways` | OpenAPI spec card → gateway checks → API Gateway vs Apigee table |
+|  | `events-functions` | CloudEvent handler card → upload-to-function flow → execution boundaries |
+|  | `events-pubsub` | publisher → topic → 2×2 subscription kinds |
+|  | `events-delivery` | numbered 2×2 delivery cycle → promises-and-limits table |
+|  | `events-eventarc` | sources → trigger command card → destinations |
+|  | `events-tasks` | two jobs → Pub/Sub vs Cloud Tasks table |
+|  | `events-workflows` | Workflows YAML with compensation → who does what |
+|  | `events-retries` | numbered 2×2 duplicate delivery → idempotent handler → dead-letter band |
+|  | `events-backpressure` | backlog plot → 2×2 surge layers → where to put the limit table (padding 0.17) |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

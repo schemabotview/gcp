@@ -5,6 +5,7 @@ import { networking } from './networking'
 import { compute } from './compute'
 import { storage } from './storage'
 import { databases } from './databases'
+import { events } from './events'
 import type { Course, Section } from './types'
 
 // Course registry, in syllabus order. Courses are added here as each is authored.
@@ -16,6 +17,7 @@ export const COURSES: Record<string, Course> = {
   [compute.id]: compute,
   [storage.id]: storage,
   [databases.id]: databases,
+  [events.id]: events,
 }
 
 export type { Course, Section }

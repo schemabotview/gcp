@@ -52,6 +52,17 @@ docs.cloud.google.com at authoring time, with Region / scope / version stated wh
 on them. The plan's "does not imply" contrasts (budget ≠ cap, ADC ≠ grant, global VPC ≠ resilience,
 replication ≠ recovery…) are load-bearing — every one gets a section frame.
 
+## Scene inventory
+
+| course | scene id | shape |
+| --- | --- | --- |
+| `foundations` | `foundations-responsibility` | 3 containers × 4 layers; icon colour = who runs the layer |
+| | `foundations-locations` | global / multi-region / Region ⊃ zones, nested by scope |
+| | `foundations-hierarchy` | org ⊃ folders ⊃ projects ⊃ resources, nested |
+| | `foundations-billing` | billing account → linked projects → hypothetical ledger table |
+| | `foundations-first-call` | gcloud code card → three identifiers → full resource name |
+| | `foundations-budget` | spend-vs-budget plot, labels/tags, project lifecycle (padding 0.17) |
+
 ## Invariants — do not break
 
 - **Never write `x` or `y`.** Scenes are declarative: nodes, edges, nesting. `computeLayout` is not

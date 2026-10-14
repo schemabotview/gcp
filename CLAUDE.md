@@ -130,6 +130,16 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `delivery-build` | cloudbuild.yaml → digest / provenance / logs → build identity |
 |  | `delivery-cloud-deploy` | numbered pipeline targets → 2×2 canary → rollback limits |
 |  | `delivery-promotion` | one digest across three projects table → 2×2 controlled change |
+| `operations` | `operations-signals` | three signals → structured log line with trace id → retention defaults |
+|  | `operations-investigation` | log query card → trace span table → numbered three moves |
+|  | `operations-audit` | SetIamPolicy audit entry → audit log types table |
+|  | `operations-slos` | SLO and error-budget arithmetic → 2×2 useful alerts |
+|  | `operations-secrets` | numbered 2×2 broken rotation → safe order card → encryption keys |
+|  | `operations-security` | controls and their limits table → VPC SC perimeter → layered controls |
+|  | `operations-incident` | numbered 2×3 containment → privileged access |
+|  | `operations-backups` | backup policy table → isolation → last drill record |
+|  | `operations-recovery` | RTO/RPO → numbered 3×2 recovery order → failback and evidence |
+|  | `operations-resilience` | 429 and backoff card → 2×2 dependency patterns → validation |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

@@ -9,5 +9,6 @@
   "databases": "Choosing A Google Cloud Database: Cloud SQL, Firestore, Spanner, Bigtable",
   "events": "Pub/Sub, Eventarc, Cloud Tasks And Workflows: Event-Driven Google Cloud",
   "analytics": "BigQuery, Dataflow And Datastream: Analytics Pipelines On Google Cloud",
-  "delivery": "Terraform, Cloud Build And Cloud Deploy: Safe Releases On Google Cloud"
+  "delivery": "Terraform, Cloud Build And Cloud Deploy: Safe Releases On Google Cloud",
+  "operations": "Google Cloud Operations: Logging, SLOs, Security, Backups And Disaster Recovery"
 }

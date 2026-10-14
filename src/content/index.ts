@@ -8,6 +8,7 @@ import { databases } from './databases'
 import { events } from './events'
 import { analytics } from './analytics'
 import { delivery } from './delivery'
+import { operations } from './operations'
 import type { Course, Section } from './types'
 
 // Course registry, in syllabus order. Courses are added here as each is authored.
@@ -22,6 +23,7 @@ export const COURSES: Record<string, Course> = {
   [events.id]: events,
   [analytics.id]: analytics,
   [delivery.id]: delivery,
+  [operations.id]: operations,
 }
 
 export type { Course, Section }

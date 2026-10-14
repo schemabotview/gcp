@@ -70,6 +70,12 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 | | `identity-data-access` | denied-read 403 card → admin-vs-data role table |
 | | `identity-org-policy` | resourceLocations YAML → Owner refused → IAM vs Org Policy |
 | | `identity-role-matrix` | principal × environment table → audit evidence band |
+| `cloud-run` | `cloud-run-handler` | main.py code card → runtime inputs → expected curl output |
+|  | `cloud-run-deploy-paths` | two gcloud commands → source path → image path → digest-pinned revision |
+|  | `cloud-run-revisions` | service ⊃ three revisions → traffic split → 2×2 runtime contract |
+|  | `cloud-run-identities` | deployer / build / caller → service → runtime SA → what it reaches |
+|  | `cloud-run-scaling` | capacity arithmetic card → 2×2 knobs → numbered 2×2 cold start (padding 0.17) |
+|  | `cloud-run-release` | start-up failure log → staged release and rollback commands → timeout ≠ rollback |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

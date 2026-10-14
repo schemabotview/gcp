@@ -140,6 +140,13 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `operations-backups` | backup policy table → isolation → last drill record |
 |  | `operations-recovery` | RTO/RPO → numbered 3×2 recovery order → failback and evidence |
 |  | `operations-resilience` | 429 and backoff card → 2×2 dependency patterns → validation |
+| `architecture` | `architecture-measure` | latency percentile plot → p99 breakdown table (padding 0.17) |
+|  | `architecture-cdn` | what to cache table → 2×2 key and freshness → origin effect (padding 0.17) |
+|  | `architecture-cost` | billing-export SQL by label → top rows table |
+|  | `architecture-rightsizing` | numbered remove / rightsize / commit → why that order → sustainability |
+|  | `architecture-compare` | assumptions card → monthly cost-by-line table → reading the table |
+|  | `architecture-migration` | numbered 2×2 staged migration → ADR card |
+|  | `architecture-review` | six-pillar findings table → do-first priorities → what only practice establishes |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

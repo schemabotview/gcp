@@ -116,6 +116,13 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `events-workflows` | Workflows YAML with compensation → who does what |
 |  | `events-retries` | numbered 2×2 duplicate delivery → idempotent handler → dead-letter band |
 |  | `events-backpressure` | backlog plot → 2×2 surge layers → where to put the limit table (padding 0.17) |
+| `analytics` | `analytics-two-shapes` | operational vs analytical table → numbered 2×2 path → keep apart (padding 0.17) |
+|  | `analytics-ingestion` | export vs CDC → reconciliation card → arrived ≠ correct (padding 0.17) |
+|  | `analytics-lake` | lake layout card → lasting decisions → schema contract |
+|  | `analytics-bigquery` | weekly revenue SQL → expected rows table |
+|  | `analytics-partitioning` | partitioned table DDL → bytes-scanned comparison → pricing models |
+|  | `analytics-dataflow` | Beam pipeline card → numbered 2×2 late-event timeline |
+|  | `analytics-spark` | engine chooser table → 2×2 orchestrators |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

@@ -123,6 +123,13 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `analytics-partitioning` | partitioned table DDL → bytes-scanned comparison → pricing models |
 |  | `analytics-dataflow` | Beam pipeline card → numbered 2×2 late-event timeline |
 |  | `analytics-spark` | engine chooser table → 2×2 orchestrators |
+| `delivery` | `delivery-terraform` | annotated main.tf → provider / resource / reference |
+|  | `delivery-state` | GCS backend and module card → 2×2 what state is |
+|  | `delivery-inputs` | deploying identity → inputs table → rerun test |
+|  | `delivery-plan` | terraform plan with drift and replacement → guards → plan limits |
+|  | `delivery-build` | cloudbuild.yaml → digest / provenance / logs → build identity |
+|  | `delivery-cloud-deploy` | numbered pipeline targets → 2×2 canary → rollback limits |
+|  | `delivery-promotion` | one digest across three projects table → 2×2 controlled change |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

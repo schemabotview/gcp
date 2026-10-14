@@ -3,5 +3,6 @@
   "foundations": "Google Cloud Basics: Projects, Regions, Billing And Budgets",
   "identity": "Google Cloud IAM Explained: Roles, Service Accounts, Deny And Org Policy",
   "cloud-run": "Deploy Your First Cloud Run App: Revisions, Identity, Scaling, Rollback",
-  "networking": "Google Cloud Networking Explained: VPC, Firewalls, DNS, Load Balancers, VPN"
+  "networking": "Google Cloud Networking Explained: VPC, Firewalls, DNS, Load Balancers, VPN",
+  "compute": "Compute Engine vs GKE vs Cloud Run: Choosing Compute On Google Cloud"
 }

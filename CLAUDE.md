@@ -85,6 +85,13 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `networking-private-access` | PGA / PSC / PSA table → where the address lives → same checks |
 |  | `networking-shared-vpc` | Shared VPC host and service projects → peering chain → peering rules |
 |  | `networking-hybrid` | numbered 2×2 HA VPN path → hybrid options table → availability caveats |
+| `compute` | `compute-selection` | 2×2 workload questions → three-platform comparison table |
+|  | `compute-instances` | annotated instances create card → 2×2 lifecycle → OS Login / IAP (padding 0.17) |
+|  | `compute-migs` | template → regional MIG across zones → scaling vs healing → rolling update |
+|  | `compute-capacity` | zone-exhausted error → four kinds of capacity table → design band |
+|  | `compute-supply-chain` | numbered 3×2 image path → what stays yours |
+|  | `compute-gke` | Deployment manifest → Autopilot vs Standard table |
+|  | `compute-shutdown` | numbered 2×2 interrupted worker → idempotent insert → notice periods |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

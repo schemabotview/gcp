@@ -92,6 +92,13 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `compute-supply-chain` | numbered 3×2 image path → what stays yours |
 |  | `compute-gke` | Deployment manifest → Autopilot vs Standard table |
 |  | `compute-shutdown` | numbered 2×2 interrupted worker → idempotent insert → notice periods |
+| `storage` | `storage-interfaces` | object / block / file → service table → persistence boundary |
+|  | `storage-buckets` | bucket create, cp and ls card → location types → object facts |
+|  | `storage-access` | numbered 2×2 signed-URL upload → signing code → bucket controls (padding 0.17) |
+|  | `storage-consistency` | two-writer race → generation preconditions card → 2×2 guarantees (padding 0.17) |
+|  | `storage-lifecycle` | storage class table → 2×2 deletion protections |
+|  | `storage-disks` | block and file option table → deciding questions → the retail app's choices |
+|  | `storage-recovery` | replicated bad change → restore-beside card → 2×2 recovery claims |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

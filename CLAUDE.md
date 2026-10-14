@@ -99,6 +99,14 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `storage-lifecycle` | storage class table → 2×2 deletion protections |
 |  | `storage-disks` | block and file option table → deciding questions → the retail app's choices |
 |  | `storage-recovery` | replicated bad change → restore-beside card → 2×2 recovery claims |
+| `databases` | `databases-patterns` | data-by-access-pattern table → 2×2 questions |
+|  | `databases-cloud-sql` | Google runs vs still yours (nested) → when AlloyDB |
+|  | `databases-transactions` | order transaction SQL → connection exhaustion log → how the API connects |
+|  | `databases-availability` | four-features table → replica-lag timeline → the app's share |
+|  | `databases-firestore` | product document → composite-index query → 2×2 behaviour (padding 0.17) |
+|  | `databases-spanner` | what Spanner offers → instance configs → does stock need it table |
+|  | `databases-bigtable` | hot vs spread row keys → 2×2 behaviour |
+|  | `databases-cache` | 2×2 stale-cache timeline → numbered 2×2 migration (padding 0.17) |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

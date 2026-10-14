@@ -4,6 +4,7 @@ import { cloudRun } from './cloud-run'
 import { networking } from './networking'
 import { compute } from './compute'
 import { storage } from './storage'
+import { databases } from './databases'
 import type { Course, Section } from './types'
 
 // Course registry, in syllabus order. Courses are added here as each is authored.
@@ -14,6 +15,7 @@ export const COURSES: Record<string, Course> = {
   [networking.id]: networking,
   [compute.id]: compute,
   [storage.id]: storage,
+  [databases.id]: databases,
 }
 
 export type { Course, Section }

@@ -5,5 +5,6 @@
   "cloud-run": "Deploy Your First Cloud Run App: Revisions, Identity, Scaling, Rollback",
   "networking": "Google Cloud Networking Explained: VPC, Firewalls, DNS, Load Balancers, VPN",
   "compute": "Compute Engine vs GKE vs Cloud Run: Choosing Compute On Google Cloud",
-  "storage": "Google Cloud Storage Explained: Buckets, Signed URLs, Lifecycle, Backups"
+  "storage": "Google Cloud Storage Explained: Buckets, Signed URLs, Lifecycle, Backups",
+  "databases": "Choosing A Google Cloud Database: Cloud SQL, Firestore, Spanner, Bigtable"
 }

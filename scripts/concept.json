@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-repo publishing identity, read by @graphlearning/shell's thumb / gen-descriptions scripts. Env vars (CONCEPT, SITE, APP_PATH, HASHTAGS, PANEL_BG) still override. SWAP every field but `site`.",
+  "concept": "Google Cloud",
+  "site": "https://graphl.in",
+  "appPath": "/gcp",
+  "hashtags": "#GoogleCloud #GCP #CloudComputing #CloudArchitecture #TechEducation",
+  "panelBg": "radial-gradient(118% 104% at 70% 34%, #7baaf7 0%, #1a56c4 44%, #0b1220 100%)"
+}

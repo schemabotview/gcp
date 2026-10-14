@@ -1,6 +1,7 @@
 import { foundations } from './foundations'
 import { identity } from './identity'
 import { cloudRun } from './cloud-run'
+import { networking } from './networking'
 import type { Course, Section } from './types'
 
 // Course registry, in syllabus order. Courses are added here as each is authored.
@@ -8,6 +9,7 @@ export const COURSES: Record<string, Course> = {
   [foundations.id]: foundations,
   [identity.id]: identity,
   [cloudRun.id]: cloudRun,
+  [networking.id]: networking,
 }
 
 export type { Course, Section }

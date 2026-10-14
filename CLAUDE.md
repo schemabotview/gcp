@@ -76,6 +76,15 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 |  | `cloud-run-identities` | deployer / build / caller → service → runtime SA → what it reaches |
 |  | `cloud-run-scaling` | capacity arithmetic card → 2×2 knobs → numbered 2×2 cold start (padding 0.17) |
 |  | `cloud-run-release` | start-up failure log → staged release and rollback commands → timeout ≠ rollback |
+| `networking` | `networking-cidr` | 2×2 building blocks → CIDR worked example → private ranges |
+|  | `networking-vpc` | global VPC ⊃ two Regions (subnet + VM each) → address plan |
+|  | `networking-routes` | route table card → private egress via Cloud NAT → what NAT is not |
+|  | `networking-firewall` | firewall rule card → numbered evaluation order → stateful / not IAM |
+|  | `networking-dns` | dig from two networks → resolver path → zone kinds |
+|  | `networking-load-balancing` | numbered 3×2 request path → load balancer chooser table |
+|  | `networking-private-access` | PGA / PSC / PSA table → where the address lives → same checks |
+|  | `networking-shared-vpc` | Shared VPC host and service projects → peering chain → peering rules |
+|  | `networking-hybrid` | numbered 2×2 HA VPN path → hybrid options table → availability caveats |
 
 `badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
 (`'2 · Deny policies'`).

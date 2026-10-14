@@ -2,5 +2,6 @@
   "_comment": "Curated publish titles (YouTube title + thumbnail header) per course, keyed by course id. Search-first: what someone would actually type, never 'Course 4'. One entry per course in src/content/index.ts.",
   "foundations": "Google Cloud Basics: Projects, Regions, Billing And Budgets",
   "identity": "Google Cloud IAM Explained: Roles, Service Accounts, Deny And Org Policy",
-  "cloud-run": "Deploy Your First Cloud Run App: Revisions, Identity, Scaling, Rollback"
+  "cloud-run": "Deploy Your First Cloud Run App: Revisions, Identity, Scaling, Rollback",
+  "networking": "Google Cloud Networking Explained: VPC, Firewalls, DNS, Load Balancers, VPN"
 }

@@ -62,6 +62,17 @@ replication ≠ recovery…) are load-bearing — every one gets a section frame
 | | `foundations-billing` | billing account → linked projects → hypothetical ledger table |
 | | `foundations-first-call` | gcloud code card → three identifiers → full resource name |
 | | `foundations-budget` | spend-vs-budget plot, labels/tags, project lifecycle (padding 0.17) |
+| `identity` | `identity-principals` | six principal kinds over an authn → authz → resource band |
+| | `identity-bindings` | get-iam-policy code card → role kinds → inherited policy levels |
+| | `identity-evaluation` | numbered PAB / deny / allow stages → deny policy card → conditional binding card |
+| | `identity-service-accounts` | three kinds → two faces → 2×2 lifecycle |
+| | `identity-credentials` | ADC order, actAs vs getAccessToken, numbered 2×2 federation steps |
+| | `identity-data-access` | denied-read 403 card → admin-vs-data role table |
+| | `identity-org-policy` | resourceLocations YAML → Owner refused → IAM vs Org Policy |
+| | `identity-role-matrix` | principal × environment table → audit evidence band |
+
+`badge:` does not render in the pinned engine (`flow@1.3.0`) — number steps in the `label` instead
+(`'2 · Deny policies'`).
 
 ## Invariants — do not break
 

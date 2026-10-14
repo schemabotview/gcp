@@ -1,9 +1,11 @@
 import { foundations } from './foundations'
+import { identity } from './identity'
 import type { Course, Section } from './types'
 
 // Course registry, in syllabus order. Courses are added here as each is authored.
 export const COURSES: Record<string, Course> = {
   [foundations.id]: foundations,
+  [identity.id]: identity,
 }
 
 export type { Course, Section }
